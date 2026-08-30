@@ -42,7 +42,7 @@ Step 4 of the notebook is the only place this matters: it clones the private
 repo and writes that line. Skip it and the notebook renders the examples.
 
 Open the notebook at
-<https://colab.research.google.com/github/YOUR-USERNAME/AI_Music_Creator/blob/main/colab/AI_Music_Creator.ipynb>,
+<https://colab.research.google.com/github/Netajam/AI_Music_Creator/blob/main/colab/AI_Music_Creator.ipynb>,
 set the runtime to GPU, and run the cells in order.
 
 ---

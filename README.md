@@ -1,6 +1,16 @@
 # AI Music Creator
 
-AI song generation, **100% local**, on a MacBook M2 Pro (16 GB).
+AI song generation, **100% local**, on a MacBook M2 Pro (16 GB) — or on a rented
+GPU when the batch is long enough to be worth it:
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Netajam/AI_Music_Creator/blob/main/colab/AI_Music_Creator.ipynb)
+
+This repository is the **tool**. It holds no song anyone wrote: the presets in
+`presets/` are worked examples, and a clone of this repo is complete on its own.
+A workspace of your own — your presets, your lyrics, your takes — can live in a
+second repository cloned into `private/`; `_workspace` in
+[aimc/workspace.py](aimc/workspace.py) is the whole of that mechanism, and with
+no `.workspace` file it answers "this repo", which is what makes everything
+below run unchanged. See [colab/README.md](colab/README.md).
 
 Engine: [**ACE-Step 1.5**](https://github.com/ace-step/ACE-Step-1.5) (MIT), cloned into [engine/](engine/).
 It is currently the best open music generation model that fits on this machine:
