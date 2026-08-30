@@ -10,7 +10,7 @@ Used to feed the pipeline with style references: you download a track, then
 Then:
 
     ./blend-refs refs/downloads/the-track.mp3=45 -o refs/melange.wav
-    ./song --preset presets/techno-pouf.json --reference refs/melange.wav
+    ./song --preset presets/electro-house.json --reference refs/melange.wav
 
 Downloading from YouTube goes against its terms of service, and the tracks
 fetched remain under copyright unless they are yours, in the public domain or
@@ -146,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 Then:
   ./blend-refs refs/downloads/title.mp3=45 -o refs/melange.wav
-  ./song --preset presets/techno-pouf.json --reference refs/melange.wav
+  ./song --preset presets/electro-house.json --reference refs/melange.wav
 """,
     )
     parser.add_argument("target", metavar="URL_OR_SEARCH",

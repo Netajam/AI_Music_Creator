@@ -1,6 +1,6 @@
 """./master — prepares a track for distribution.
 
-    ./master songs/pouf-seed1.wav
+    ./master songs/the-track.wav
 
 What the script does:
 
@@ -35,7 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Prepares a track for distribution (lossless WAV, calibrated loudness).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
-  ./song --preset presets/techno-pouf.json --seed 1 --format wav   # lossless source
+  ./song --preset presets/electro-house.json --seed 1 --format wav   # lossless source
   ./master songs/the-track.wav                                     # -> *_master.wav
   ./master songs/the-track.wav --lufs -16 --head 2 --tail 3
 

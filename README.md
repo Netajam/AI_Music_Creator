@@ -201,7 +201,7 @@ Two tools, far more effective than re-rolling random seeds.
 
 ```bash
 ./song --preset presets/electro-house.json \
-       --repaint songs/ma-prise-seed1.wav --repaint-from 78 --repaint-to 92 \
+       --repaint songs/the-track.wav --repaint-from 78 --repaint-to 92 \
        --repaint-mode balanced
 ```
 
@@ -417,7 +417,7 @@ settings, plus two fields that answer questions the settings alone do not settle
   bit depth; two files with the same name and different fingerprints are two
   unrelated takes. The studio shows it under each take and **warns in plain
   words** when two files sharing a stem do not contain the same take — exactly the
-  `ma-prise-seed1.mp3` / `ma-prise-seed1.wav` trap.
+  `pouf-seed1.mp3` / `pouf-seed1.wav` trap.
 - **`code`** — a fingerprint of our own modules used for the render, plus the
   revision of `engine/`. Without it, "what it takes to remake this exact take" is
   a false promise as soon as generation changes. The studio compares it against
@@ -436,6 +436,50 @@ original code stays unknown.
 
 A preset bundles style, lyrics, tempo and key. The paths it contains are relative
 to the preset itself.
+
+**Every option `./song` accepts is a preset key**, with `-` or `_` between words
+— `apply_preset` maps each key onto the parser and refuses one it does not
+recognise, so `./song --help` is the complete list and a typo is caught before
+anything loads. That includes the ones that are easy to miss because the example
+below does not use them:
+
+| key | what it does |
+|---|---|
+| `reference` | an audio file to imitate the style of — *a new song in the same spirit* |
+| `cover` | an audio file to re-record in another style |
+| `style-strength` | how hard the reference pulls, `0.0`–`1.0` |
+| `negative` | what the model must avoid |
+| `instrumental` | `true` for no voice |
+| `repaint`, `repaint-from`, `repaint-to` | regenerate one passage of an existing take |
+| `lego`, `lego-track` | add one instrument track to an existing take |
+| `retake-seed`, `retake-variance` | a variation on a take you liked |
+| `lm-temperature`, `lm-cfg`, `shift`, `sampler` | the levers in the sections above |
+
+`reference` and `cover` take **a path, never a URL**: the audio has to be on
+disk before a generation starts, and it is fetched once rather than on every
+take. `./grab` is what puts it there — see
+[Style references](#style-references-grabbing-and-blending-tracks) — so the full
+chain from a YouTube link to a preset is:
+
+```bash
+./grab "https://music.youtube.com/watch?v=..."      # -> refs/downloads/the-track.mp3
+./blend-refs refs/downloads/the-track.mp3=45 -o refs/melange.wav
+```
+
+```json
+{
+  "style": "Electro-house française, kick four-on-the-floor, basse sidechainée…",
+  "lyrics": "../lyrics/exemple-drop.txt",
+  "reference": "../refs/melange.wav",
+  "style-strength": 0.25,
+  "bpm": 126,
+  "duration": 145
+}
+```
+
+The downloaded audio is under copyright and `refs/downloads/` is gitignored on
+purpose; the preset that points at it is a few hundred bytes of your own
+decision, and that is the part worth versioning.
 
 ```json
 {

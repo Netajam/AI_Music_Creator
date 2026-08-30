@@ -62,8 +62,21 @@ def _check_lego(args: argparse.Namespace, parser: argparse.ArgumentParser) -> No
 def _check_audio_files(args: argparse.Namespace,
                        parser: argparse.ArgumentParser) -> None:
     for opt, value in _audio_modes(args):
-        if value and not Path(value).expanduser().is_file():
-            parser.error(f"audio file not found for {opt}: {value}")
+        if not value or Path(value).expanduser().is_file():
+            continue
+        # A URL here is a reasonable thing to have tried — every other tool that
+        # takes music takes a link. The engine reads a file and only a file, so
+        # say which command turns one into the other rather than reporting the
+        # URL back as a missing path. Path() has already eaten one of its
+        # slashes by now, which makes the plain message actively confusing.
+        if str(value).startswith(("http://", "https:/", "www.")):
+            parser.error(
+                f"{opt} takes a file, not a link. Download it first:\n"
+                f"    ./grab \"<the url>\"                       "
+                f"# -> refs/downloads/\n"
+                f"    ./blend-refs refs/downloads/<file>=45 -o refs/melange.wav\n"
+                f"  then pass {opt} refs/melange.wav")
+        parser.error(f"audio file not found for {opt}: {value}")
 
 
 def _check_repaint(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:

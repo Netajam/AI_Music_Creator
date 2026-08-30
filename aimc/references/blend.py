@@ -12,7 +12,7 @@ We can therefore fill those three slots with three different tracks: the model
 receives them as three influences of equal weight.
 
     ./blend-refs a.mp3=45 b.mp3=30 c.mp3=12 -o refs/melange.wav
-    ./song --preset presets/techno-pouf.json --reference refs/melange.wav
+    ./song --preset presets/electro-house.json --reference refs/melange.wav
 
 The number after `=` is the point (in seconds) at which to take the 10 s — aim
 for a chorus or a drop, not an intro.
@@ -134,7 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""example:
   ./blend-refs ~/Music/a.mp3=45 ~/Music/b.mp3=30 ~/Music/c.mp3=12 -o refs/melange.wav
-  ./song --preset presets/techno-pouf.json --reference refs/melange.wav --style-strength 0.25
+  ./song --preset presets/electro-house.json --reference refs/melange.wav --style-strength 0.25
 
 Give 1 to 3 tracks. With fewer than 3, the slots are filled cyclically
 (2 tracks -> A, B, A), which gives more weight to the first one.
@@ -177,7 +177,7 @@ def main() -> int:
         return 1
 
     print(f"\n{out_path}  ({final:.2f} s, {SAMPLE_RATE} Hz, stereo)")
-    print(f"\n  ./song --preset presets/techno-pouf.json \\\n"
+    print(f"\n  ./song --preset presets/electro-house.json \\\n"
           f"         --reference {out_path} --style-strength 0.25")
     return 0
 
