@@ -133,6 +133,14 @@ def build_params(args: argparse.Namespace, lyrics: str,
         seed=args.seed,
         thinking=not args.no_thinking,
     )
+    # The engine resolves dcw_enabled=None to "on for turbo models", which is
+    # every model this repo uses. Saying False is the only way to say off, and
+    # it is worth having a way: DCW runs a wavelet transform over the latents at
+    # every step, and on a pre-Ampere card — where the engine has already fallen
+    # back from bfloat16 to float16 — that is a plausible place for the range to
+    # give out. Leaving it None keeps the engine's own default.
+    if args.no_dcw:
+        params.dcw_enabled = False
     _apply_reference(params, args)
     _apply_repaint(params, args)
     _apply_lego(params, args, instruction_for)

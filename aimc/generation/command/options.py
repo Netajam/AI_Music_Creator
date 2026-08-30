@@ -187,6 +187,10 @@ def _advanced(p: argparse.ArgumentParser) -> None:
                      help=f"5Hz language model (default: {DEFAULT_LM})")
     adv.add_argument("--no-lm", action="store_true",
                      help="does not use the LM (less memory, lower quality)")
+    adv.add_argument("--no-dcw", action="store_true",
+                     help="turns off the wavelet correction (DCW), which the engine "
+                          "enables for turbo models. A suspect when a CUDA card "
+                          "without bfloat16 returns NaN latents")
     adv.add_argument("--offload", action="store_true",
                      help="offloads the weights to the CPU between steps (if memory is tight)")
     adv.add_argument("--mlx-dit", action="store_true",
