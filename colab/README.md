@@ -39,7 +39,16 @@ saying `presets/night/…` keep meaning what they meant — the whole content tr
 moves together, so the paths inside it never change.
 
 Step 4 of the notebook is the only place this matters: it clones the private
-repo and writes that line. Skip it and the notebook renders the examples.
+repo and writes that line. Skip it and the notebook uses this repo — the presets
+in `presets/`, and `night/collections/example.py` for the batch — or whatever
+you upload into them.
+
+**Only step 3 is required.** Every cell after it calls `context()`, which
+re-reads the workspace from disk, re-detects the GPU and checks whether Drive is
+mounted. Cells can be skipped, re-run after a kernel restart, or run out of
+order, because none of them depends on a global another one happened to leave
+behind. Step 10 composes a song from form fields alone — and saves the preset
+and lyrics it built before rendering, so a take you like can be run again.
 
 Open the notebook at
 <https://colab.research.google.com/github/Netajam/AI_Music_Creator/blob/main/colab/AI_Music_Creator.ipynb>,
