@@ -25,7 +25,29 @@ for arg in "$@"; do
   esac
 done
 
-step() { printf '\n\033[1m▶ %s\033[0m\n' "$1"; }
+# Each step is timed, and the total is printed at the end. Ten minutes is worth
+# optimising only once it is known which minutes they are — the guesses here are
+# a 5 GB wheel download and an 8 GB weight download, and those want opposite
+# fixes.
+_run_start=$(date +%s); _step_name=""; _step_start=0; _timings=""
+
+_close_step() {
+  [[ -z "$_step_name" ]] && return 0
+  local now; now=$(date +%s)
+  _timings+="$(printf '  %-26s %4ds' "$_step_name" $((now - _step_start)))"$'\n'
+}
+
+step() {
+  _close_step
+  _step_name="$1"; _step_start=$(date +%s)
+  printf '\n\033[1m▶ %s\033[0m\n' "$1"
+}
+
+timings() {
+  _close_step
+  printf '\n\033[1m▶ where the time went\033[0m\n%s' "$_timings"
+  printf '  %-26s %4ds\n' "TOTAL" $(( $(date +%s) - _run_start ))
+}
 
 # ---------------------------------------------------------------------------
 step "uv"
@@ -86,8 +108,10 @@ snapshot_download("ACE-Step/acestep-5Hz-lm-0.6B", local_dir=ckpt / "acestep-5Hz-
 PY
 
 # ---------------------------------------------------------------------------
-step "ready"
-du -sh engine/checkpoints
+timings
+
+printf '\n\033[1m▶ ready\033[0m\n'
+du -sh engine/checkpoints engine/.venv 2>/dev/null | sed 's/^/  /'
 echo
-echo "  ./song --preset presets/night/atlas-02/phylyps-return.json --seed 1"
+echo "  ./song --preset presets/electro-house.json --seed 1"
 echo "  ./night/worker.sh          # drains night/queue/, models loaded once"
