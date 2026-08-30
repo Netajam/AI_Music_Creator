@@ -57,6 +57,30 @@ def _load_dit(args: argparse.Namespace, device: str) -> Any | None:
     return handler
 
 
+def _lm_dtype(device: str) -> Any | None:
+    """float32 for the LM on a CUDA card that has no bfloat16.
+
+    The engine picks bfloat16 for the LM on *any* CUDA device, with none of the
+    capability check it does for the DiT — which falls back to float16 below
+    compute capability 8.0. So on a pre-Ampere card the two disagree, and the
+    comment three lines above that choice says what happens when they do:
+    weights trained in bfloat16 "produce NaN/inf when naively converted to
+    float16 (different exponent range)".
+
+    That is a candidate for the all-NaN latents a T4 returns — every one of
+    them, from the first step, which is what arriving NaN looks like rather than
+    what accumulating overflow looks like. The LM is 0.6B, so float32 costs
+    about 2.5 GB and the card has room.
+
+    None everywhere else, which leaves the engine's own choice alone.
+    """
+    if device != "cuda":
+        return None
+    import torch
+    major, _ = torch.cuda.get_device_capability()
+    return None if major >= 8 else torch.float32
+
+
 def _load_lm(args: argparse.Namespace, device: str, backend: str) -> Any:
     """The language model, which decides the structure and the arrangement.
 
@@ -68,6 +92,10 @@ def _load_lm(args: argparse.Namespace, device: str, backend: str) -> Any:
     handler = LLMHandler()
     if args.no_lm:
         return handler
+    dtype = _lm_dtype(device)
+    if dtype is not None:
+        print(f"This GPU has no bfloat16: loading the LM in {dtype} instead.",
+              flush=True)
     print(f"Loading the 5Hz LM ({args.lm}, backend {backend})…", flush=True)
     status, ok = handler.initialize(
         checkpoint_dir=str(CHECKPOINT_DIR),
@@ -75,6 +103,7 @@ def _load_lm(args: argparse.Namespace, device: str, backend: str) -> Any:
         backend=backend,
         device=device,
         offload_to_cpu=args.offload,
+        dtype=dtype,
     )
     if not ok:
         print(f"Warning: LM not loaded ({status}). "
