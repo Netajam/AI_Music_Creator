@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Wrapper: runs the song CLI inside the engine's uv environment.
+# VIRTUAL_ENV is cleared so an activated pyenv/conda env doesn't shadow engine/.venv.
+# PYTHONPATH (rather than a cd) puts the aimc package on the path: the working
+# directory stays the caller's, so relative paths on the command line still mean
+# what the caller meant.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+unset VIRTUAL_ENV
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+exec uv run --project "$ROOT/engine" --no-sync python -m aimc.generation.cli "$@"

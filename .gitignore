@@ -1,0 +1,38 @@
+# The private half of the tree: the presets, lyrics and collections that say
+# what to generate, and the takes that came out. It is its own repository,
+# cloned in here, and nothing about it belongs in this one. `.workspace` is the
+# single line that points at it — one machine's arrangement, not a fact about
+# the project. See `_workspace` in aimc/workspace.py.
+/private/
+.workspace
+
+# engine/ is an upstream clone of ACE-Step 1.5, with its own .git: adding it
+# here would not version its contents, only a broken submodule link (there is no
+# .gitmodules). It is not our own code, it re-clones, and its 12 GB have no
+# business in a repo. Its exact revision is recorded in each take's manifest
+# anyway (see aimc/provenance/).
+engine/
+
+# Downloaded references: copyrighted audio, do not version
+refs/downloads/
+refs/*.wav
+
+# Generated tracks
+songs/*
+!songs/.gitkeep
+
+# Analyses cached by the studio, and the per-step timings measured by the
+# engine: derived, reproducible, and specific to this machine.
+.studio-cache/
+.cache/
+
+__pycache__/
+*.pyc
+.DS_Store
+
+# Mezzanine analysis output
+.mezz/data/
+
+# The pid of a batch worker running on a rented GPU: true of one machine for as
+# long as it lives, and of nothing else. See colab/README.md.
+night/.colab-worker.pid

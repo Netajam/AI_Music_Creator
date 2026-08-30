@@ -1,0 +1,9 @@
+{
+  "style": "Électropop française énergique, synthés analogiques larges, basse pulsée, batterie électronique claquante, voix féminine avec hook accrocheur, refrain lumineux",
+  "lyrics": "../lyrics/exemple.txt",
+  "language": "fr",
+  "bpm": 118,
+  "key": "F minor",
+  "time_signature": "4",
+  "duration": 165
+}

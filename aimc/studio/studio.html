@@ -1,0 +1,2347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio</title>
+<style>
+  :root {
+    --bg:#f7f7f8; --panel:#fff; --line:#e2e2e6; --ink:#1a1a1c; --dim:#6b6b73;
+    --accent:#c2410c; --ok:#15803d; --warn:#b45309; --bar:#c2410c;
+    --voice:#2563eb; --drop:#be123c; --cursor:#0f172a;
+    --mid:#7c3aed; --high:#0891b2;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#161618; --panel:#1e1e21; --line:#2e2e33; --ink:#ececee; --dim:#9a9aa3;
+      --accent:#fb923c; --ok:#4ade80; --warn:#fbbf24; --bar:#fb923c;
+      --voice:#60a5fa; --drop:#fb7185; --cursor:#f1f5f9;
+      --mid:#a78bfa; --high:#22d3ee;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.5 system-ui, -apple-system, sans-serif; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line);
+           display:flex; align-items:baseline; gap:14px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; letter-spacing:-0.01em; }
+  header .sub { color:var(--dim); font-size:12.5px; }
+  main { display:grid; grid-template-columns: 250px 1fr 300px; gap:1px;
+         background:var(--line); min-height:calc(100vh - 50px); }
+  section { background:var(--panel); padding:16px; overflow-y:auto; max-height:calc(100vh - 50px); }
+  h2 { font-size:11px; text-transform:uppercase; letter-spacing:.07em;
+       color:var(--dim); margin:0 0 10px; font-weight:600; }
+  h2:not(:first-child) { margin-top:22px; }
+  .take { padding:7px 9px; border-radius:6px; cursor:pointer; margin-bottom:2px;
+          border:1px solid transparent; }
+  .take:hover { background:var(--bg); }
+  .take.on { background:var(--bg); border-color:var(--line); }
+  .take .n { font-family:var(--mono); font-size:11.5px; word-break:break-all; }
+  .take .m { color:var(--dim); font-size:11px; margin-top:2px; }
+  .tag { display:inline-block; font-size:10px; padding:1px 5px; border-radius:3px;
+         border:1px solid var(--line); color:var(--dim); margin-right:4px; }
+  .tag.ok { color:var(--ok); border-color:currentColor; }
+  .tag.no { color:var(--warn); border-color:currentColor; }
+  .tag.bad { color:var(--drop); border-color:currentColor; }
+  .tag.wait { color:var(--dim); border-style:dashed; }
+  .fp { font-family:var(--mono); font-size:10px; color:var(--dim); }
+  .box { border:1px solid var(--line); border-left:3px solid var(--warn);
+         border-radius:6px; padding:9px 11px; margin:9px 0; font-size:12px;
+         background:var(--bg); }
+  .box.stop { border-left-color:var(--drop); }
+  .box.good { border-left-color:var(--ok); }
+  .box p { margin:0 0 6px; } .box p:last-child { margin-bottom:0; }
+  .box strong { font-weight:600; }
+  .box ul { margin:4px 0 0; padding-left:18px; } .box li { margin:2px 0; }
+  .inline { display:flex; align-items:center; gap:6px; font-size:11.5px;
+            color:var(--dim); margin:9px 0 3px; }
+  .inline input[type=checkbox] { width:auto; margin:0; }
+  #masterreport td.n { font-family:var(--mono); text-align:right; }
+  label { display:block; font-size:11.5px; color:var(--dim); margin:9px 0 3px; }
+  input, select, textarea, button {
+    width:100%; font:inherit; padding:6px 8px; border-radius:6px;
+    border:1px solid var(--line); background:var(--bg); color:var(--ink); }
+  textarea { font-family:var(--mono); font-size:11.5px; resize:vertical; }
+  button { cursor:pointer; background:var(--panel); font-weight:500; }
+  button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  button.go { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.go:hover:not(:disabled) { color:#fff; filter:brightness(1.1); }
+  .row { display:flex; gap:6px; } .row > * { flex:1; }
+  .graph { position:relative; border:1px solid var(--line); border-radius:6px;
+           background:var(--bg); overflow:hidden; }
+  .graph canvas { width:100%; display:block; }
+  #canvas { height:110px; cursor:crosshair; }
+  /* The ribbon lives inside .graph, and not in a sibling div, so that it shares
+     exactly the graph's usable width: the border is carried by .graph, and a
+     sibling container would be 2 px wider — the ribbon would then be talking
+     about a different track from the bars above it. It listens to no gesture:
+     dragging selects a region to regenerate, the head band scrubs playback, and
+     the ribbon takes neither. */
+  #ribbon { height:14px; pointer-events:none; }
+  /* The two band lanes, between the bars and the sung ribbon. Same reasoning as
+     the ribbon: inside .graph so they share exactly the bars' usable width, and
+     deaf to every gesture. Eighteen pixels for two lanes of eight plus the rule
+     that separates them from the bars above. */
+  #bands { height:18px; pointer-events:none; }
+  /* Cursor layer: redrawn every frame during playback, whereas draw() redoes
+     bars, vocals and drops. Separating the two avoids that work 60 times a
+     second — and draw() no longer erases the cursor. */
+  /* 142 px: the graph, the two band lanes and the ribbon. The playhead crosses
+     all of them, and the current sung region is marked here rather than on the
+     ribbon, which stays static. */
+  #cursor { position:absolute; left:0; top:0; width:100%; height:142px;
+            pointer-events:none; }
+  pre { font-family:var(--mono); font-size:11px; background:var(--bg); padding:9px;
+        border-radius:6px; border:1px solid var(--line); overflow-x:auto;
+        white-space:pre-wrap; word-break:break-all; margin:0; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; font-size:12px; }
+  .kv dt { color:var(--dim); } .kv dd { margin:0; font-family:var(--mono); font-size:11.5px; }
+  .note { font-size:11.5px; color:var(--dim); margin:8px 0 0; }
+  .warn { color:var(--warn); }
+  #log { font-family:var(--mono); font-size:10.5px; line-height:1.45;
+         max-height:190px; overflow-y:auto; background:var(--bg);
+         border:1px solid var(--line); border-radius:6px; padding:8px;
+         white-space:pre-wrap; word-break:break-all; }
+  audio { width:100%; margin-top:10px; }
+  /* Text meant to be read, so not the monospace font of the neighbouring <pre>.
+     The height is bounded: a take's lyrics run to 80 lines, and the whole column
+     would scroll for everything else in the panel. */
+  #lyricstext { max-height:270px; overflow-y:auto; border:1px solid var(--line);
+                border-radius:6px; background:var(--bg); padding:10px 12px;
+                font-size:12.5px; line-height:1.55; }
+  #lyricstext p { margin:0; }
+  #lyricstext .blank { height:7px; }
+  /* .sec, and not .tag: that one is already the takes' badge. */
+  #lyricstext .sec { color:var(--dim); font-size:10.5px; font-weight:600;
+                     text-transform:uppercase; letter-spacing:.06em;
+                     margin:11px 0 3px; }
+  #lyricstext .sec:first-child { margin-top:0; }
+  /* A line placed in time can be clicked to jump there. */
+  #lyricstext .ln { cursor:pointer; border-radius:3px; padding:0 4px; margin:0 -4px; }
+  #lyricstext .ln:hover { background:var(--panel); }
+  #lyricstext .ln.now { background:color-mix(in srgb, var(--voice) 22%, transparent);
+                        font-weight:600; }
+  /* Aberrant pace: the line was crammed in, not placed. It stays readable and
+     clickable, it simply stops looking sure of itself. */
+  #lyricstext .ln[data-suspect] { opacity:.5; font-style:italic; }
+  .empty { color:var(--dim); font-size:12px; font-style:italic; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; }
+  th { text-align:left; color:var(--dim); font-weight:500; font-size:10.5px;
+       text-transform:uppercase; letter-spacing:.04em; padding:3px 6px 5px 0; }
+  td { padding:3px 6px 3px 0; border-top:1px solid var(--line); font-variant-numeric:tabular-nums; }
+  td.lab { color:var(--dim); }
+  tr.sel td { background:color-mix(in srgb, var(--accent) 12%, transparent); }
+  /* "currently playing" is not "selected for touch-up": .sel tints the
+     background, .playing puts a marker on the left. Two distinct marks, so both
+     can show on the same row without masking each other. */
+  /* A constant margin, set on every row and not only on the playing one:
+     otherwise the text would shift by 7 px as the marker went past, and the
+     column would jump at every section boundary. */
+  th:first-child, td:first-child { padding-left:7px; }
+  tr.playing td:first-child { box-shadow:inset 3px 0 var(--cursor); }
+  tr.playing td.lab { color:var(--ink); font-weight:600; }
+  tr.clickable { cursor:pointer; }
+  tr.clickable:hover td { background:var(--bg); }
+  /* Two lists in one column, each scrolling on its own. The column scrolled as
+     a whole until inspirations joined it, and the download field then sat below
+     thirty-odd takes — a form you had to go looking for. Capping both keeps the
+     two headings on screen together, whichever list has grown. */
+  #takes, #inspirations { max-height:38vh; overflow-y:auto; }
+  /* Inspirations and their kept moments. `.insp` mirrors `.take` rather than
+     sharing it: the two lists sit in the same column and only one of them can
+     be the open one, so they must be able to look selected independently. */
+  .insp { padding:7px 9px; border-radius:6px; cursor:pointer; margin-bottom:2px;
+          border:1px solid transparent; }
+  .insp:hover { background:var(--bg); }
+  .insp.on { background:var(--bg); border-color:var(--line); }
+  .insp .n { font-family:var(--mono); font-size:11.5px; word-break:break-all; }
+  .insp .m { color:var(--dim); font-size:11px; margin-top:2px; }
+  .pick { border:1px solid var(--line); border-left:3px solid var(--accent);
+          border-radius:6px; padding:8px 10px; margin-bottom:8px; background:var(--bg); }
+  .pick .at { font-family:var(--mono); font-weight:600; }
+  /* The length of a passage, and what a reference will actually take out of it.
+     Beside the span rather than under it: the two numbers only mean something
+     read together. */
+  .pick .span { color:var(--dim); font-size:10.5px; margin-left:7px; }
+  /* The passage being read, before it is kept: same frame as a pick, dashed,
+     because nothing has been written down yet. */
+  #spanbox { border-style:dashed; }
+  .pick .m { color:var(--dim); font-size:11px; margin-top:3px; }
+  .pick textarea { margin-top:6px; }
+  .pick .acts { display:flex; gap:6px; margin-top:6px; align-items:center; }
+  .pick .acts button { flex:1; }
+  .pick .acts label { margin:0; display:flex; align-items:center; gap:5px;
+                      white-space:nowrap; }
+  .pick .acts input[type=checkbox] { width:auto; margin:0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Studio</h1>
+  <span class="sub">ACE-Step 1.5 &middot; local &middot; one generation at a time</span>
+  <span class="sub" id="jobbadge" style="margin-left:auto"></span>
+</header>
+
+<main>
+  <!-- ---------------------------------------------------------- prises -->
+  <section>
+    <h2>Takes</h2>
+    <div id="takes"><p class="empty">loading…</p></div>
+
+    <h2>Inspirations</h2>
+    <input id="graburl" placeholder="YouTube URL, or words to search for">
+    <div class="row" style="margin-top:6px">
+      <select id="grabfmt">
+        <option value="wav">wav — lossless</option>
+        <option value="mp3">mp3 — smaller</option>
+      </select>
+      <button id="grabbtn">Get</button>
+    </div>
+    <p class="note">A search downloads the first result. Lossless by default:
+      a reference is fed to the engine, not listened to.<br>
+      <span class="warn">Downloading from YouTube goes against its terms of
+      service, and what comes back stays under copyright unless it is yours, in
+      the public domain, or under a free licence. Personal use.</span></p>
+    <div id="grabstatus"></div>
+    <div id="inspirations"><p class="empty">loading…</p></div>
+  </section>
+
+  <!-- -------------------------------------------------------- inspecteur -->
+  <section>
+    <h2>Energy profile <span id="selinfo" style="text-transform:none;letter-spacing:0"></span></h2>
+    <p class="note" id="nowshowing">Select a take, or an inspiration.</p>
+    <div class="graph">
+      <canvas id="canvas" height="110"></canvas>
+      <canvas id="bands" height="18"></canvas>
+      <canvas id="ribbon" height="14"></canvas>
+      <canvas id="cursor" height="142"></canvas>
+    </div>
+    <p class="note">
+      <span style="color:var(--bar)">▮</span> bass &lt;150 Hz &nbsp;
+      <span style="color:var(--voice)">━</span> vocals (estimated) &nbsp;
+      <span style="color:var(--drop)">▼</span> drop &nbsp;
+      │ section boundary &nbsp;
+      <span style="color:var(--cursor)">▮</span> playback<br>
+      Lanes below, each shaded against <em>its own</em> loudest second — they
+      say when a band carries the track, never which one is louder:
+      <span style="color:var(--mid)">▬</span> mids 150 Hz–2 kHz &nbsp;
+      <span style="color:var(--high)">▬</span> highs 2–8 kHz &nbsp;
+      <span style="color:var(--voice)">▬</span> where the singing is.<br>
+      <span id="gestures"></span></p>
+    <div id="sections"></div>
+    <audio id="player" controls preload="none"></audio>
+
+    <div id="insponly" style="display:none">
+      <h2>Kept from this track <span id="pickcount" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div id="pickbox"></div>
+    </div>
+
+    <h2>Structure</h2>
+    <div id="structtable"><p class="empty">—</p></div>
+
+    <h2>What is playing</h2>
+    <div id="stemstable"><p class="empty">—</p></div>
+    <div id="stembox"></div>
+
+    <div id="takeonly">
+    <h2>Lyrics <span id="lyricsbadge" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div id="lyricstext"><p class="empty">Select a take.</p></div>
+    <p class="note" id="lyricsnote"></p>
+    <div id="alignbox"></div>
+
+    <h2>Measurements</h2>
+    <dl class="kv" id="meas"><dd class="empty">—</dd></dl>
+
+    <h2>Publish <span id="publishbadge" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div id="publish"><p class="empty">Select a take.</p></div>
+
+    <h2>Settings for this take</h2>
+    <div id="manifest"><p class="empty">Select a take.</p></div>
+    </div>
+
+    <h2>Log <span id="logsource" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div id="log">—</div>
+  </section>
+
+  <!-- ----------------------------------------------------------- composer -->
+  <section>
+    <h2>Compose</h2>
+    <label>Preset</label>
+    <select id="preset"></select>
+    <label>Style <span id="stylecount"></span></label>
+    <textarea id="style" rows="4" placeholder="the preset's own style — leave empty to keep it"></textarea>
+    <p class="note" id="stylenote"></p>
+    <label>Lyrics</label>
+    <select id="lyrics"></select>
+    <label>Style reference</label>
+    <select id="reference"></select>
+    <div class="row">
+      <div><label>Influence</label><input id="strength" type="number" step="0.05" min="0" max="1" placeholder="preset"></div>
+      <div><label>BPM</label><input id="bpm" type="number" placeholder="preset"></div>
+    </div>
+    <div class="row">
+      <div><label>Duration (s)</label><input id="duration" type="number" placeholder="preset"></div>
+      <div><label>Seed</label><input id="seed" type="number" placeholder="random"></div>
+    </div>
+    <div class="row">
+      <div><label>Format</label><select id="fmt">
+        <option value="wav">wav — lossless (default)</option>
+        <option value="flac">flac — lossless</option>
+        <option value="mp3">mp3 — listening only, not publishable</option></select></div>
+      <div><label>Method</label><select id="infer">
+        <option value="">ode (default)</option>
+        <option value="sde">sde (more varied)</option></select></div>
+    </div>
+
+    <p class="note" id="fmtnote"></p>
+
+    <h2>Repaint</h2>
+    <p class="note" id="repainttarget">Select a take, then drag on the graph.</p>
+    <div class="row">
+      <div><label>From (s)</label><input id="rfrom" type="number" step="1"></div>
+      <div><label>To (s)</label><input id="rto" type="number" step="1"></div>
+    </div>
+    <label>Mode</label>
+    <select id="rmode">
+      <option value="">balanced (default)</option>
+      <option value="conservative">conservative</option>
+      <option value="aggressive">aggressive</option>
+    </select>
+    <button id="clearrepaint" style="margin-top:8px">Clear repaint</button>
+
+    <h2>Add a track</h2>
+    <p class="note">The engine composes the chosen instrument <em>on top of</em> the
+      selected take, over the range above. Everything else is kept as it is.
+      Style, tempo and key are taken from the take's settings.</p>
+    <label>Instrument</label>
+    <select id="legotrack"><option value="">— none —</option></select>
+    <p class="note" id="legoinfo"></p>
+
+    <h2>Command</h2>
+    <pre id="cmd">—</pre>
+    <div class="row" style="margin-top:10px">
+      <button id="preview">Preview</button>
+      <button id="go" class="go">Run</button>
+    </div>
+    <button id="stop" style="margin-top:6px" disabled>Stop generation</button>
+    <p class="note" id="guard"></p>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let current = null, energy = null, struct = null, sel = null, dragging = null;
+// Playback position, in seconds; null while it is unknown — with preload="none"
+// the player has neither duration nor position before the first play, and a
+// playhead put at zero "just in case" would lie about what we know.
+let playAt = null, scrubbing = false, rafId = null, pendingSeek = null;
+// Ribbon stretches: runs of sections that agree on `has_vocal`. The threshold
+// that decides "sung" is not here — it is in the analysis, and a second
+// definition would make the ribbon and the structure table drift apart.
+let stretches = null;
+// The lines placed in time, and the one being heard. `lyricAt` avoids
+// repainting 70 lines every frame: only a change of line touches the DOM.
+let lyricSpans = [], lyricAt = -1, lastAlign = null, alignWasRunning = false;
+// Same trick for the separation: the poll has to notice the job *finishing* to
+// reload the take with its result, and the flag is what makes an edge out of
+// two polls that both say "not running".
+let stemsWereRunning = false, lastStems = null;
+// Whether the next separation should also name what plays. Held here and not
+// read off the checkbox, because `paintStems` rewrites that box every two
+// seconds: a tick stored only in the DOM would clear itself under the cursor
+// between deciding to tick it and clicking the button.
+let stemsWantTags = false;
+// Not every take can be aligned: without a manifest there is no reference text,
+// and an instrumental take has nothing to place. The poll repaints the button
+// every two seconds and needs to know.
+let canAlign = false;
+// Targets and thresholds served by /api/state, never hard-coded here: they
+// belong to the mastering domain, and two copies would end up drifting apart.
+let targets = {}, limits = {};
+let detail = null;              // the last /api/take or /api/inspiration response
+// Which kind of track the inspector is showing. `current` stays the open *take*
+// whatever happens — it is what the composer repaints and adds tracks to — so
+// opening an inspiration leaves the repaint selection, its bounds and its
+// target exactly where they were.
+let mode = "take";
+let insp = null, inspPicks = [];
+// The passage currently being read — {start, end, measured} — set by clicking a
+// section, cleared by keeping it or deselecting. Held here and not in the DOM
+// because the picks panel is rebuilt every time the playhead crosses the
+// boundary that makes the "keep the moment" button appear.
+let inspSpan = null;
+let lastGrab = null, grabWasRunning = false;
+let lastJob = null, lastMaster = null, masterWasRunning = false;
+const probed = new Set();
+let probing = false;
+
+const esc = v => String(v ?? "").replace(/[&<>"']/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const base = p => p ? String(p).split("/").pop() : "";
+
+const api = async (path, opts) => {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+  return r.json();
+};
+
+function fillSelect(el, items, blank) {
+  el.innerHTML = `<option value="">${blank}</option>` +
+    items.map(i => `<option value="${i}">${i}</option>`).join("");
+}
+
+async function refresh() {
+  const s = await api("/api/state");
+  const keep = { p: $("preset").value, l: $("lyrics").value, r: $("reference").value };
+  fillSelect($("preset"), s.presets, "— none —");
+  fillSelect($("lyrics"), s.lyrics, "— the preset's —");
+  fillSelect($("reference"), s.refs, "— none —");
+  const keepTrack = $("legotrack").value;
+  fillSelect($("legotrack"), s.tracks || [], "— none —");
+  $("legotrack").value = keepTrack;
+  $("preset").value = keep.p; $("lyrics").value = keep.l; $("reference").value = keep.r;
+  updateLegoInfo();
+
+  targets = s.targets || targets;
+  limits = s.limits || limits;
+  $("takes").innerHTML = s.takes.length ? s.takes.map(takeRow).join("")
+    : '<p class="empty">No takes yet.</p>';
+  document.querySelectorAll(".take").forEach(el =>
+    el.onclick = () => load(el.dataset.n));
+  const list = s.inspirations || [];
+  $("inspirations").innerHTML = list.length ? list.map(inspRow).join("")
+    : '<p class="empty">Nothing downloaded yet.</p>';
+  document.querySelectorAll(".insp").forEach(el =>
+    el.onclick = () => loadInspiration(el.dataset.n));
+  paintJob(s.job);
+  if (s.master) paintMaster(s.master);
+  if (s.grab) paintGrab(s.grab);
+  updateStyleNote();
+  probePending(s.takes);
+}
+
+function takeRow(t) {
+  const settings = t.has_manifest
+    ? (t.manifest_kind === "reconstructed"
+        ? '<span class="tag no" title="Settings reconstructed after the fact: the seed is a guess and the original code is unknown.">reconstructed settings</span>'
+        : '<span class="tag ok">settings</span>')
+    : '<span class="tag no">no settings</span>';
+  return `
+    <div class="take ${mode === "take" && t.name === current ? "on" : ""}" data-n="${esc(t.name)}">
+      <div class="n">${esc(t.name)}</div>
+      <div class="m">
+        <span class="tag ${t.lossless ? "ok" : "no"}">${t.lossless ? "lossless" : "lossy"}</span>
+        ${settings}
+        ${readyTag(t)}
+      </div>
+      <div class="m">${esc(t.modified)} &middot; ${t.size_mb} MB
+        &middot; <span class="fp" title="Fingerprint of the decoded audio: two files with the same fingerprint hold the same take.">${esc(t.fingerprint_short)}</span></div>
+      ${t.collision ? `<div class="m warn">⚠ ${esc(t.collision)}</div>` : ""}
+    </div>`;
+}
+
+/* --------------------------------------------------------- inspirations --
+   A track we did not make: downloaded by `./grab`, read with the same analysis
+   as a take, and kept apart from them everywhere it matters. It has no
+   manifest, no seed and nothing to publish, so the panels that speak of those
+   are hidden rather than filled with dashes.
+
+   Opening one does not close the take. `current` keeps naming what the composer
+   repaints; only the inspector changes what it is looking at.                */
+
+function inspRow(t) {
+  const tags = [
+    `<span class="tag ${t.lossless ? "ok" : "no"}">${t.lossless ? "lossless" : "lossy"}</span>`,
+    t.analysed ? '<span class="tag ok">analysed</span>'
+               : '<span class="tag wait" title="Opening it is what analyses it — about a second.">not analysed</span>',
+    t.separated ? '<span class="tag ok">stems</span>' : "",
+    t.picks ? `<span class="tag ok">${t.picks} kept</span>` : "",
+  ].join("");
+  return `
+    <div class="insp ${mode === "inspiration" && t.name === insp ? "on" : ""}" data-n="${esc(t.name)}">
+      <div class="n">${esc(t.name)}</div>
+      <div class="m">${tags}</div>
+      <div class="m">${esc(t.modified)} &middot; ${t.size_mb} MB${
+        t.source ? ` &middot; <span title="${esc(t.source)}">from a URL</span>` : ""}</div>
+    </div>`;
+}
+
+// The download is network and ffmpeg, no weights: it has its own lock and does
+// not wait for a generation (see GrabJob). What it needs saying is the case
+// stdout cannot express — a URL asked for twice writes nothing at all.
+function paintGrab(g) {
+  lastGrab = g;
+  const box = $("grabstatus");
+  $("grabbtn").disabled = g.running;
+  $("grabbtn").textContent = g.running ? `Getting — ${g.elapsed}s` : "Get";
+  if (g.running) {
+    box.innerHTML = `<p class="note">Downloading <code>${esc(g.url)}</code> —
+      the log is below.</p><button id="grabstop">Stop</button>`;
+    $("grabstop").onclick = () => api("/api/grab/stop", { method: "POST" }).catch(() => {});
+    grabWasRunning = true;
+    paintLog();
+    return;
+  }
+  if (grabWasRunning) { grabWasRunning = false; refresh(); }
+  if (!g.started) { box.innerHTML = ""; return; }
+  // Landed, but /api/grab/state has not yet read the folder: `arrived` is empty
+  // because nothing has looked, not because nothing was written. Saying
+  // "already downloaded" here would be guessing.
+  if (!g.settled) { paintLog(); return; }
+  if (g.exit_code !== 0) {
+    box.innerHTML = `<p class="note warn">The download failed
+      (exit ${g.exit_code}). The log is below — if YouTube is asking for a
+      check, the log says which command works around it.</p>`;
+  } else if (!g.arrived.length) {
+    box.innerHTML = `<p class="note">Already downloaded: nothing was written.
+      <code>./grab</code> never overwrites a track it already has, so asking for
+      the same URL twice is a no-op, not a failure.</p>`;
+  } else {
+    box.innerHTML = `<p class="note">Got ${g.arrived.map(n =>
+      `<code>${esc(n)}</code>`).join(", ")}.</p>`;
+  }
+  paintLog();
+}
+
+async function startGrab() {
+  const url = $("graburl").value.trim();
+  if (!url) return;
+  $("grabstatus").innerHTML = "";
+  try {
+    await api("/api/grab", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, fmt: $("grabfmt").value }) });
+  } catch (e) {
+    $("grabstatus").innerHTML = `<p class="note warn">${esc(e.message)}</p>`;
+    return;
+  }
+  try { paintGrab(await api("/api/grab/state")); } catch {}
+}
+
+function readyTag(t) {
+  if (t.ready === true)
+    return '<span class="tag ok" title="Lossless, on target loudness, peak under the ceiling, clean tail.">ready to publish</span>';
+  if (t.ready === false)
+    return `<span class="tag bad" title="${esc((t.missing || []).join(" · "))}">not ready to publish</span>`;
+  return '<span class="tag wait" title="Readiness is being measured…">readiness…</span>';
+}
+
+// The list is shown with what is already known; the rest is measured take by
+// take, in the background. A full decode per file would otherwise block the
+// display for several seconds on every open.
+async function probePending(takes) {
+  if (probing) return;
+  const todo = takes.filter(t => (t.ready === null || t.fingerprint === null)
+                                 && !probed.has(t.name + "@" + t.modified));
+  if (!todo.length) return;
+  probing = true;
+  try {
+    for (const t of todo) {
+      probed.add(t.name + "@" + t.modified);
+      try { await api(`/api/probe/${encodeURIComponent(t.name)}`); } catch {}
+    }
+  } finally { probing = false; }
+  refresh();          // pastilles et collisions apparaissent d'un coup
+}
+
+function paintJob(j) {
+  lastJob = j;
+  const busy = j.running || j.foreign_pid != null;
+  $("go").disabled = busy;
+  $("stop").disabled = !busy;
+  $("jobbadge").textContent = (j.foreign_pid != null && !j.running)
+    ? `generation running outside the studio (pid ${j.foreign_pid})`
+    : busy
+    ? `generating — ${j.elapsed}s`
+    : (j.exit_code === null ? "" : (j.exit_code === 0 ? "last generation: finished" : `last generation: failed (${j.exit_code})`));
+  $("guard").innerHTML = busy
+    ? '<span class="warn">Locked: two generations at once exhaust the 16 GB and both fail'
+      + (j.foreign_pid != null && !j.running ? ' — this one was started from the terminal.' : '.') + '</span>'
+    : "";
+  paintLog();
+}
+
+// A master does not wait for a generation to finish: it is ffmpeg, it loads no
+// model. It only jostles with itself (see MasterJob).
+function paintMaster(m) {
+  lastMaster = m;
+  const btn = $("masterbtn"), stop = $("masterstop");
+  if (btn) {
+    btn.disabled = m.running;
+    btn.textContent = m.running ? `Mastering — ${m.elapsed}s` : "Master";
+  }
+  if (stop) stop.disabled = !m.running;
+  renderMasterReport(m);
+  if (masterWasRunning && !m.running) refresh();   // the *_master appears on its own
+  masterWasRunning = m.running;
+  paintLog();
+}
+
+// A single log panel, the one that already existed: it shows what is running,
+// and failing that the last thing that was launched.
+function paintLog() {
+  // Whatever is running, and failing that the most recent thing that ran. The
+  // alignment and the separation are in the list because their own boxes say
+  // "the log is below" when they fail — which was not true while only the
+  // generation and the master could reach this panel.
+  const sources = [["generation", lastJob], ["master", lastMaster],
+                   ["download", lastGrab], ["alignment", lastAlign],
+                   ["separation", lastStems]]
+    .filter(([, st]) => st && st.log && st.log.length);
+  if (!sources.length) return;
+  const running = sources.filter(([, st]) => st.running);
+  const [label, src] = (running.length ? running : sources)
+    .sort((a, b) => (b[1].started || 0) - (a[1].started || 0))[0];
+  $("logsource").textContent = `— ${label}`;
+  const box = $("log"), atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 20;
+  box.textContent = src.log.join("\n");
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+async function load(name) {
+  mode = "take"; insp = null; inspPicks = []; inspSpan = null;
+  // The mode is applied after `current` and `sel` have moved, never before:
+  // it reads both to write the heading and the selection label, and reading
+  // them first named the take we were leaving and kept a band that was gone.
+  current = name; sel = null;
+  applyMode();
+  // Clear before the request: otherwise the previous take's bars and ribbon stay
+  // on screen under the new one's name.
+  energy = null; struct = null; stretches = null; detail = null;
+  $("lyricstext").innerHTML = `<p class="empty">loading…</p>`;
+  $("lyricsbadge").textContent = ""; $("lyricsnote").textContent = "";
+  $("alignbox").innerHTML = ""; lyricSpans = []; lyricAt = -1;
+  $("stemstable").innerHTML = `<p class="empty">loading…</p>`;
+  draw(); drawRibbon();
+  resetPlayhead();
+  const d = await api(`/api/take/${encodeURIComponent(name)}`);
+  energy = d.energy; struct = d.structure || null;
+  $("player").src = `/audio/${encodeURIComponent(name)}`;
+  $("repainttarget").innerHTML = `Target: <code>${name}</code>`;
+  const L = d.loudness || {};
+  $("meas").innerHTML = `
+    <dt>duration</dt><dd>${(d.energy.duration || 0).toFixed(1)} s</dd>
+    <dt>integrated</dt><dd>${L.lufs ?? "—"} LUFS</dd>
+    <dt>true peak</dt><dd>${L.peak ?? "—"} dBTP</dd>
+    <dt>range</dt><dd>${L.lra ?? "—"} LU</dd>`;
+
+  detail = d;
+  renderPublish(d);
+  renderManifest(d);
+  renderLyrics(d);
+  renderStructure();
+  renderStems(d);
+  updateLegoInfo();
+  draw();
+  drawRibbon();
+  highlightSection();
+  refresh();
+}
+
+function applyMode() {
+  const showing = mode === "take";
+  $("takeonly").style.display = showing ? "" : "none";
+  $("insponly").style.display = showing ? "none" : "";
+  // The selection band belongs to the take. Its label sits beside a heading
+  // that would now be describing another track, so it steps aside — and comes
+  // back untouched, because `sel` was never cleared.
+  $("selinfo").textContent = (showing && sel) ? `— ${sel[0]}s to ${sel[1]}s` : "";
+  $("gestures").innerHTML = showing
+    ? `<strong>Drag</strong> to pick a region to regenerate.
+       <strong>Grab the playback line</strong>, or the strip along the top, to
+       move through the track.`
+    : `<strong>Grab the playback line</strong>, or the strip along the top, to
+       move through the track. <strong>Click a section</strong> in the structure
+       table to read the whole passage rather than one instant. Dragging
+       elsewhere does nothing here: it picks a region to regenerate, and this is
+       not a track we can regenerate.`;
+  $("nowshowing").innerHTML = showing
+    ? (current ? `Take <code>${esc(current)}</code>.` : "Select a take, or an inspiration.")
+    : `Inspiration <code>${esc(insp)}</code> — a track we did not make. No
+       settings, no publishing: what is here is what can be measured, plus what
+       you write down.${current ? ` The composer still targets
+       <code>${esc(current)}</code>.` : ""}`;
+}
+
+async function loadInspiration(name) {
+  mode = "inspiration"; insp = name; inspPicks = []; inspSpan = null;
+  applyMode();
+  // Cleared before the request, like a take: the previous track's bars must not
+  // sit under the new one's name.
+  energy = null; struct = null; stretches = null; detail = null;
+  canAlign = false;
+  lyricSpans = []; lyricAt = -1;
+  $("stemstable").innerHTML = `<p class="empty">loading…</p>`;
+  $("pickbox").innerHTML = `<p class="empty">loading…</p>`;
+  $("structtable").innerHTML = `<p class="empty">loading…</p>`;
+  draw(); drawRibbon();
+  resetPlayhead();
+  const d = await api(`/api/inspiration/${encodeURIComponent(name)}`);
+  // The user may have clicked elsewhere while the first analysis ran: a stale
+  // answer must not paint itself over whatever is open now.
+  if (mode !== "inspiration" || insp !== name) return;
+  energy = d.energy; struct = d.structure || null; inspPicks = d.picks || [];
+  inspSpan = null;
+  detail = d;
+  $("player").src = `/inspiration-audio/${encodeURIComponent(name)}`;
+  renderStructure();
+  renderStems(d);
+  renderPicks();
+  draw();
+  drawRibbon();
+  highlightSection();
+  refresh();
+}
+
+/* --------------------------------------------------------------- picks --
+   The half of a "recognizable feature" that no measurement supplies. The studio
+   can say 100 BPM, a drop, bass at 0.95, drums 41% of the energy; it cannot say
+   "round sub bass, one dry male lead". So the machine puts down the landmark
+   and the numbers, and the listener puts down the words, and what leaves this
+   panel carries both: a 30 s reference cut at the seconds that were kept, the
+   tempo that was measured there, and the sentence that was typed.
+
+   Two scales, one panel. The playhead keeps an instant; a row of the structure
+   table keeps a whole passage, measured end to end. Both become the same kind
+   of pick and both feed a reference the same way — ten seconds from where they
+   start, which is the one thing the engine reads.                            */
+
+function pickMeasured(p) {
+  const m = p.measured || {};
+  if (p.until != null) return spanMeasured(m);
+  const sc = m.section || {}, b = m.bands || {};
+  const bits = [];
+  if (sc.label) bits.push(esc(sc.label));
+  // An inherited tempo is never shown as a measurement: `bpm_measured` false
+  // means the section was too short and the global value was reused.
+  if (sc.bpm) bits.push(sc.bpm_measured ? `${Math.round(sc.bpm)} BPM`
+                                        : `~${Math.round(sc.bpm)} BPM (track's)`);
+  if (b.low != null) bits.push(`bass ${b.low.toFixed(2)}`);
+  if (b.mid != null) bits.push(`mids ${b.mid.toFixed(2)}`);
+  if (b.high != null) bits.push(`highs ${b.high.toFixed(2)}`);
+  if (sc.has_vocal !== undefined) bits.push(sc.has_vocal ? "sung" : "no voice");
+  const shares = ((m.stems || {}).shares) || null;
+  if (shares) bits.push(stemShares(shares));
+  return bits.join(" · ");
+}
+
+function stemShares(shares) {
+  return Object.entries(shares).filter(([, v]) => v != null)
+    .map(([k, v]) => `${k} ${(v * 100).toFixed(0)}%`).join(" · ");
+}
+
+// The same sentence, said of a passage instead of an instant. Every field is
+// the aggregate the server computed — the labels of the sections crossed, the
+// bands averaged over the span, one tempo only when the passage has one — and
+// none of it is recomputed here: two definitions of "what this passage is like"
+// would drift the moment either side changed.
+function spanMeasured(m) {
+  const sections = m.sections || [], bits = [];
+  const labels = [...new Set(sections.map(s => s.label))];
+  if (labels.length) bits.push(labels.map(esc).join(" → "));
+  const t = m.tempo || {};
+  // "varies" is not a missing measurement, it is a result: it is the reason not
+  // to cut a reference across this passage without listening first.
+  if (t.varies) bits.push("tempo varies");
+  else if (t.bpm) bits.push(t.measured ? `${Math.round(t.bpm)} BPM`
+                                       : `~${Math.round(t.bpm)} BPM (track's)`);
+  const b = m.bands || {};
+  if (b.low != null) bits.push(`bass ${b.low.toFixed(2)}`);
+  if (b.mid != null) bits.push(`mids ${b.mid.toFixed(2)}`);
+  if (b.high != null) bits.push(`highs ${b.high.toFixed(2)}`);
+  const sung = sections.filter(s => s.has_vocal).length;
+  if (sections.length) bits.push(
+    sung === 0 ? "no voice"
+      : sung === sections.length ? "sung"
+        : `sung in ${sung} of ${sections.length} sections`);
+  if ((m.drops || []).length) bits.push(`drop at ${m.drops.join(" s, ")} s`);
+  const shares = ((m.stems || {}).shares) || null;
+  if (shares) bits.push(stemShares(shares));
+  return bits.join(" · ");
+}
+
+// The BPM a pick is allowed to hand to the composer — only ever one that was
+// really measured there. A passage whose tempo varies hands over nothing: that
+// is precisely the case where any single number would be wrong.
+function pickBpm(p) {
+  const m = p.measured || {};
+  if (p.until != null) {
+    const t = m.tempo || {};
+    return t.measured && t.bpm ? t.bpm : null;
+  }
+  const sc = m.section || {};
+  return sc.bpm && sc.bpm_measured ? sc.bpm : null;
+}
+
+function renderPicks() {
+  const box = $("pickbox");
+  $("pickcount").textContent = inspPicks.length ? `— ${inspPicks.length}` : "";
+  const at = playAt === null ? null : Math.round(playAt);
+  const moment = at === null ? "" : `
+    <button id="keepbtn" class="go">Keep the moment at ${at}s</button>
+    <p class="note">Freezes what is measured there — section, tempo, bands,
+      and the stems if they have been separated — and lets you write what you
+      hear. Ten seconds start here when it becomes a reference.</p>`;
+  const head = moment + spanHead(at);
+
+  const rows = inspPicks.map(p => `
+    <div class="pick" data-id="${esc(p.id)}">
+      <div><span class="at">${p.at}s${p.until != null ? ` → ${p.until}s` : ""}</span>
+        ${p.until != null
+          ? `<span class="span">${p.until - p.at} s heard · ${REFERENCE_SLOT_S} s
+             taken from ${p.at}s</span>` : ""}</div>
+      <div class="m">${pickMeasured(p) || "nothing measured"}</div>
+      <textarea rows="2" data-note="${esc(p.id)}"
+        placeholder="what you hear here — it becomes style text">${esc(p.note || "")}</textarea>
+      <div class="acts">
+        <label><input type="checkbox" data-use="${esc(p.id)}"> use</label>
+        <button data-save="${esc(p.id)}">Save words</button>
+        <button data-drop="${esc(p.id)}">Remove</button>
+      </div>
+    </div>`).join("");
+
+  const build = inspPicks.length ? `
+    <button id="buildref" class="go">Build a style reference</button>
+    <p class="note">Whatever is ticked becomes the 10 s slots of one 30 s
+      reference — three at most, because that is what the engine reads, and a
+      passage gives its first ten seconds like a moment gives the ten that
+      follow it. One track only: a blend holding two tempos makes a take that
+      speeds up and slows down for no reason. Their words are added to the
+      composer's style box, and a tempo actually measured there fills the BPM
+      field.</p>` : "";
+
+  box.innerHTML = head + (rows || `<p class="empty">Nothing kept yet.</p>`) + build;
+
+  const keep = $("keepbtn");
+  if (keep) keep.onclick = () => keepMoment(at);
+  const keepSpan = $("keepspan");
+  if (keepSpan) keepSpan.onclick = keepPassage;
+  const dropSpan = $("dropspan");
+  if (dropSpan) dropSpan.onclick = clearSection;
+  box.querySelectorAll("[data-save]").forEach(b =>
+    b.onclick = () => savePick(b.dataset.save));
+  box.querySelectorAll("[data-drop]").forEach(b =>
+    b.onclick = () => dropPick(b.dataset.drop));
+  const build2 = $("buildref");
+  if (build2) build2.onclick = buildReference;
+  drawCursor();
+}
+
+/* The passage under the panel's own header: what a clicked section is like,
+   before anything has been written down about it. Rendered from `inspSpan` and
+   not from the row that was clicked, so the block survives the rebuild that
+   happens every time the playhead crosses a section boundary.               */
+function spanHead(at) {
+  if (!inspSpan) {
+    return `<p class="note">${at === null
+      ? "Play, or drag the strip along the top of the graph, to put the playhead on a moment. "
+      : ""}<strong>Click a section</strong> in the structure table below to read
+      a whole passage instead — averaged end to end, rather than sampled at the
+      one second the playhead happens to sit on.</p>`;
+  }
+  const { start, end, measured } = inspSpan;
+  const seconds = end - start;
+  return `
+    <div class="pick" id="spanbox">
+      <div><span class="at">${start}s → ${end}s</span>
+        <span class="span">${seconds} s</span></div>
+      <div class="m">${measured ? (spanMeasured(measured) || "nothing measured")
+                                : "reading…"}</div>
+      <div class="acts">
+        <button id="keepspan" class="go"${measured ? "" : " disabled"}>Keep this passage</button>
+        <button id="dropspan">Deselect</button>
+      </div>
+      <p class="note">Bands averaged over the ${seconds} s, and every section the
+        passage crosses listed. Kept, it still gives a reference its
+        ${REFERENCE_SLOT_S} s from ${start}s — that is all the engine reads — but
+        the words you write will be describing what you actually heard.</p>
+    </div>`;
+}
+
+/* A passage read whole. The playhead answers "what is happening at this
+   instant"; this answers "what is this passage like", which is the question
+   actually asked of a track we did not make. Same three sources as a moment —
+   sections, bands, stems — aggregated over the span by the server rather than
+   sampled at one second. */
+async function selectSection(a, b) {
+  const track = insp;
+  seekTo(a);
+  markSelectedRow(a);
+  inspSpan = { start: a, end: b, measured: null };
+  renderPicks();
+  let m;
+  try {
+    m = await api(`/api/inspiration/${encodeURIComponent(track)}/measure`
+                  + `?start=${a}&end=${b}`);
+  } catch (e) {
+    if (insp === track) { clearSection(); alert(e.message); }
+    return;
+  }
+  // Another track, or another section, may have been clicked while this ran: a
+  // stale answer must not describe the passage now on screen.
+  if (mode !== "inspiration" || insp !== track) return;
+  if (!inspSpan || inspSpan.start !== a || inspSpan.end !== b) return;
+  inspSpan.measured = m;
+  renderPicks();
+}
+
+function clearSection() {
+  inspSpan = null;
+  markSelectedRow(null);
+  renderPicks();
+}
+
+// One selected row at a time, matched on the second it starts at — sections
+// cannot share a start, so that is enough of an identity, and passing null
+// clears the lot.
+function markSelectedRow(a) {
+  document.querySelectorAll("#structtable tr").forEach(r =>
+    r.classList.toggle("sel", a !== null && +r.dataset.a === a));
+}
+
+async function keepPassage() {
+  if (!inspSpan || !inspSpan.measured) return;
+  const { start, end } = inspSpan;
+  try {
+    await api(`/api/inspiration/${encodeURIComponent(insp)}/picks`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at: start, until: end, note: "" }) });
+  } catch (e) { alert(e.message); return; }
+  inspSpan = null;
+  markSelectedRow(null);
+  await reloadPicks();
+}
+
+async function keepMoment(at) {
+  try {
+    await api(`/api/inspiration/${encodeURIComponent(insp)}/picks`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at, note: "" }) });
+  } catch (e) { alert(e.message); return; }
+  await reloadPicks();
+}
+
+async function savePick(id) {
+  const box = document.querySelector(`textarea[data-note="${id}"]`);
+  try {
+    await api(`/api/inspiration/${encodeURIComponent(insp)}/picks/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at: 0, note: box.value }) });
+  } catch (e) { alert(e.message); return; }
+  await reloadPicks();
+}
+
+async function dropPick(id) {
+  const p = inspPicks.find(x => x.id === id) || {};
+  if (!confirm(p.until != null ? "Remove this passage?" : "Remove this moment?")) return;
+  try {
+    await api(`/api/inspiration/${encodeURIComponent(insp)}/picks/${id}`,
+              { method: "DELETE" });
+  } catch (e) { alert(e.message); return; }
+  await reloadPicks();
+}
+
+async function reloadPicks() {
+  const d = await api(`/api/inspiration/${encodeURIComponent(insp)}`);
+  inspPicks = d.picks || [];
+  renderPicks();
+  refresh();
+}
+
+/* A kept moment on its way back down into the composer. Three things travel,
+   and they are not of the same kind, so each is handled on its own terms:
+   the audio (a 30 s reference, cut by blend-refs), the tempo (only when it was
+   really measured there), and the words (which the engine reads as `--style`,
+   replacing the preset's text — so the box is seeded with that text first). */
+async function buildReference() {
+  const chosen = inspPicks.filter(p =>
+    (document.querySelector(`input[data-use="${p.id}"]`) || {}).checked);
+  if (!chosen.length) { alert("Tick at least one moment."); return; }
+  const btn = $("buildref");
+  btn.disabled = true; btn.textContent = "Building…";
+  let out;
+  try {
+    out = await api(`/api/inspiration/${encodeURIComponent(insp)}/reference`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ats: chosen.map(p => p.at) }) });
+  } catch (e) {
+    btn.disabled = false; btn.textContent = "Build a style reference";
+    $("pickbox").insertAdjacentHTML("beforeend",
+      `<p class="note warn">${esc(e.message)}</p>`);
+    return;
+  }
+  await refresh();
+  $("reference").value = out.reference;
+
+  const notes = chosen.map(p => (p.note || "").trim()).filter(Boolean);
+  if (notes.length) await appendToStyle(notes);
+
+  const measured = chosen.map(pickBpm).find(Boolean);
+  if (measured) $("bpm").value = Math.round(measured);
+
+  buildCmd();
+  btn.disabled = false; btn.textContent = "Build a style reference";
+  $("pickbox").insertAdjacentHTML("beforeend",
+    `<p class="note"><strong>${esc(out.reference)}</strong> built from
+     ${chosen.map(p => p.at + "s").join(", ")} and selected in the composer.
+     ${notes.length ? "Your words were added to the style box." : ""}
+     ${measured ? `BPM set to ${Math.round(measured)}.`
+       : `No BPM filled: none of the chosen picks gave a tempo that was really
+          measured there — too short a section, or a passage whose tempo
+          changes.`}</p>`);
+}
+
+// The engine's `--style` replaces the preset's text rather than extending it
+// (command/presets.py). Appending to an empty box would therefore silently drop
+// the preset's whole style, so the preset's own text is fetched and seeded
+// first: what leaves here is that text plus the words, never the words alone.
+async function appendToStyle(notes) {
+  const box = $("style");
+  if (!box.value.trim() && $("preset").value) {
+    try {
+      const preset = await api(`/api/preset/${encodeURIComponent($("preset").value)}`);
+      box.value = preset.style || "";
+    } catch {}
+  }
+  const existing = box.value.trim();
+  box.value = (existing ? existing.replace(/[,\s]+$/, "") + ", " : "") + notes.join(", ");
+  updateStyleNote();
+}
+
+function updateStyleNote() {
+  const box = $("style"), n = box.value.trim().length;
+  const max = limits.style_chars || 0;
+  $("stylecount").textContent = n ? `— ${n}${max ? ` / ${max}` : ""} characters` : "";
+  $("stylecount").className = max && n > max ? "warn" : "";
+  if (!n) {
+    $("stylenote").innerHTML = `Empty: the preset's own style is used, untouched.`;
+    return;
+  }
+  $("stylenote").innerHTML = `<span class="warn">This box is sent as
+    <code>--style</code>, which <strong>replaces</strong> the preset's style
+    rather than adding to it.</span>` +
+    (max && n > max ? ` <span class="warn">Over the ${max}-character limit:
+      <code>./song</code> will refuse it.</span>` : "");
+}
+
+/* -------------------------------------------------------------- lyrics --
+   The text was already in the page and nobody was showing it: /api/take returns
+   the whole manifest, and the manifest keeps `lyrics` verbatim — exactly what
+   was sent to the engine. Nothing more to ask for, nothing to measure.
+
+   It really is the manifest that is authoritative, never `lyrics/<name>.txt`:
+   the file may have been rewritten since generation, and sunglasses.txt / -v3 /
+   -v4 show that these texts move.
+
+   No line is placed in time by default, and none pretends to be: the [Verse]
+   tags in the text do not match the detected sections — measured across the 21
+   takes that have lyrics, the two counts agree just twice, and the same text
+   gives 11, 11, 6 then 10 sections depending on the seed. Following the lyrics
+   during playback needs the forced alignment of issue 02.                   */
+
+function renderLyrics(d) {
+  const box = $("lyricstext"), badge = $("lyricsbadge"), note = $("lyricsnote");
+  const m = d.manifest, p = (m || {}).params || {};
+  badge.textContent = "";
+  note.textContent = "";
+  lyricSpans = []; lyricAt = -1; canAlign = false;
+  $("alignbox").innerHTML = "";
+
+  if (!m) {
+    box.innerHTML = `<p class="empty">This take predates settings tracking:
+      the lyrics it was given were not recorded.</p>`;
+    return;
+  }
+  if (p.instrumental === true) {
+    box.innerHTML = `<p class="empty">Instrumental take — no lyrics were
+      given to the engine.</p>`;
+    return;
+  }
+  const text = m.lyrics || "";
+  if (!text.trim()) {
+    box.innerHTML = `<p class="empty">The settings record no lyrics for this
+      take.</p>`;
+    return;
+  }
+
+  canAlign = true;
+  // The placed lines, keyed by their number in the text: that is the number the
+  // alignment returns, and it counts tags and blank lines.
+  const placed = {};
+  ((d.alignment || {}).lines || []).forEach(l => { placed[l.line] = l; });
+
+  const lines = text.split("\n");
+  box.innerHTML = lines.map((l, i) => {
+    const t = l.trim();
+    if (!t) return `<div class="blank"></div>`;
+    // A line entirely in square brackets is a structure tag, not singing:
+    // [Chorus], but also stage directions like [strings only].
+    if (/^\[[^\]]+\]$/.test(t)) return `<p class="sec">${esc(t.slice(1, -1))}</p>`;
+    const at = placed[i];
+    if (!at) return `<p>${esc(l)}</p>`;
+    return `<p class="ln" data-a="${at.start}" data-b="${at.end}"${at.suspect ? ' data-suspect="1"' : ""}
+      title="${at.start.toFixed(1)}–${at.end.toFixed(1)} s · confidence ${at.score.toFixed(2)}${
+        at.suspect ? " · pace out of range: placed, but doubtfully" : ""}">${esc(l)}</p>`;
+  }).join("");
+
+  // An array rather than a query per frame, and in text order: two identical
+  // lines (a chorus) are told apart only by their position.
+  lyricSpans = [...box.querySelectorAll(".ln")].map(el => ({
+    el, a: +el.dataset.a, b: +el.dataset.b }));
+  lyricAt = -1;
+  lyricSpans.forEach(sp => { sp.el.onclick = () => seekTo(sp.a); });
+  highlightLyric();
+
+  const sung = lines.filter(l => l.trim() && !/^\[[^\]]+\]$/.test(l.trim())).length;
+  badge.textContent = `— ${sung} line${sung > 1 ? "s" : ""}`;
+  const placedCount = lyricSpans.length;
+  note.innerHTML = d.manifest_kind === "reconstructed"
+    ? `<strong>Reconstructed settings:</strong> these lyrics were attached to the
+       take after the fact and may not be the ones that were sung.`
+    : placedCount
+    ? `${placedCount} of ${sung} lines placed in time — click one to jump to it.
+       Faded lines were placed doubtfully: the alignment put them somewhere, at a
+       pace no one sings at.`
+    : `What was sent to the engine — not proof of what it sang, and not placed
+       in time. The ribbon above shows where the singing is.`;
+  paintAlign(lastAlign || { running: false });
+}
+
+/* Which line is being heard. Called every frame by syncPlayhead, it only
+   touches the DOM when the line changes — otherwise it would be 70 classes
+   toggled sixty times a second to change nothing.                          */
+function highlightLyric() {
+  if (!lyricSpans.length) { lyricAt = -1; return; }
+  let i = -1;
+  if (playAt !== null)
+    i = lyricSpans.findIndex(sp => playAt >= sp.a && playAt < sp.b);
+  if (i === lyricAt) return;
+  if (lyricAt >= 0) lyricSpans[lyricAt].el.classList.remove("now");
+  lyricAt = i;
+  if (i < 0) return;
+  lyricSpans[i].el.classList.add("now");
+  // We only scroll during playback: otherwise the panel would slip out from
+  // under the hand of someone reading it while stopped.
+  if (!$("player").paused) scrollLyricIntoView(lyricSpans[i].el);
+}
+
+function scrollLyricIntoView(el) {
+  const box = $("lyricstext");
+  const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+  if (r.top >= b.top + 6 && r.bottom <= b.bottom - 6) return;
+  box.scrollTop += (r.top - b.top) - (b.height - r.height) / 2;
+}
+
+/* The alignment button, and the job's state. Kept apart from rendering the
+   lyrics: it repaints every two seconds, they do not.                      */
+function paintAlign(a) {
+  lastAlign = a;
+  const box = $("alignbox");
+  if (!box) return;
+  if (!canAlign && !a.running) { box.innerHTML = ""; return; }
+  if (a.running) {
+    box.innerHTML = a.take === current
+      ? `<p class="note">Placing the lines — ${a.elapsed}s. The first run
+         downloads a 1.2 GB model.</p><button id="alignstop">Stop</button>`
+      : `<p class="note">Aligning <code>${esc(a.take || "")}</code> — one at a
+         time.</p>`;
+    const stop = $("alignstop");
+    if (stop) stop.onclick = () => api("/api/align/stop", { method: "POST" }).catch(() => {});
+    alignWasRunning = true;
+    return;
+  }
+  // The job has just finished: /api/align/state filed the result away, all that
+  // is left is to reload the take so it arrives with it.
+  if (alignWasRunning) {
+    alignWasRunning = false;
+    // Only reload if the take is what is on screen: an alignment finishing
+    // while an inspiration is open must not drag the inspector back to it. The
+    // result is filed in the cache and arrives when the take is next opened.
+    if (current && mode === "take") { load(current); return; }
+  }
+  const failed = a.exit_code !== null && a.exit_code !== undefined && a.exit_code !== 0
+    && a.take === current;
+  box.innerHTML =
+    (failed ? `<p class="note warn">The last alignment failed
+       (exit ${a.exit_code}). The log is below.</p>` : "") +
+    `<button id="alignbtn">${lyricSpans.length
+       ? "Align again" : "Place these lines in time"}</button>` +
+    (lyricSpans.length ? "" : `<p class="note">Aligns this text against the
+       audio — about a minute, and refused while a generation is running. It
+       places what it is given, including a line the engine never sang.</p>`);
+  $("alignbtn").onclick = startAlign;
+}
+
+async function startAlign() {
+  const box = $("alignbox");
+  try {
+    await api(`/api/align/${encodeURIComponent(current)}`, { method: "POST" });
+  } catch (e) {
+    box.innerHTML = `<p class="note warn">${esc(e.message)}</p>` + box.innerHTML;
+    return;
+  }
+  try { paintAlign(await api("/api/align/state")); } catch {}
+}
+
+function renderManifest(d) {
+  const m = d.manifest, box = $("manifest");
+  const warnings = codeWarning(d) + fingerprintLine(d);
+  if (!m) {
+    box.innerHTML = warnings +
+      `<p class="empty">This take predates settings tracking — there is no way
+       to know exactly what produced it.</p>` + reconstructButton();
+    wireReconstruct();
+    return;
+  }
+  const p = m.params || {};
+  const keep = ["task_type","caption","vocal_language","bpm","keyscale","duration",
+                "inference_steps","seed","audio_cover_strength","reference_audio",
+                "src_audio","infer_method","sampler_mode","lm_temperature","thinking"];
+  const rows = keep.filter(k => p[k] !== undefined && p[k] !== "" && p[k] !== null)
+    .map(k => `<dt>${esc(k)}</dt><dd>${esc(String(p[k]).slice(0, 220))}</dd>`).join("");
+  const rebuilt = d.manifest_kind === "reconstructed" ? `
+    <div class="box"><p><strong>Reconstructed settings, not original ones.</strong></p>
+      <p>${esc((m.reconstructed || {}).warning || "")}</p>
+      ${(m.reconstructed || {}).note ? `<p>Note: ${esc(m.reconstructed.note)}</p>` : ""}
+      <p>Read from the file: ${esc(((m.reconstructed || {}).deduced || []).join(", ") || "nothing")}.
+         The rest was typed in by hand.</p></div>` : "";
+  box.innerHTML = rebuilt + warnings + `<dl class="kv">${rows}</dl>
+    <p class="note">created ${esc(m.created || "?")}</p>
+    ${m.command ? `<pre style="margin-top:6px">${esc(m.command)}</pre>`
+                : '<p class="note">No command recorded: this take was not observed being produced.</p>'}
+    ${reconstructButton()}`;
+  wireReconstruct();
+}
+
+function fingerprintLine(d) {
+  return `<p class="note">Audio fingerprint:
+    <span class="fp">${esc(d.fingerprint_short)}</span> — two files with the same
+    fingerprint hold the same take, whatever they are called.</p>`;
+}
+
+// Without this warning, "generate again as lossless" would promise an exact
+// reproduction that the command alone cannot deliver.
+function codeWarning(d) {
+  const c = d.code || {};
+  if (c.match === true) return "";
+  if (c.match === false) return `
+    <div class="box"><p><strong>Produced by a different version of the code.</strong>
+      Running the same command again will not reproduce this take exactly.</p>
+      <ul>${(c.differences || []).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+  return `<p class="note warn">Version of the code unknown: ${esc(c.why || "")} —
+    so an exact reproduction can neither be promised nor ruled out.</p>`;
+}
+
+// ------------------------------------------------------------------ publish
+
+function renderPublish(d) {
+  const r = d.ready || {}, el = $("publish");
+  $("publishbadge").textContent = `— ${d.name}`;
+
+  let html = r.ready
+    ? `<div class="box good"><p><strong>Ready to publish.</strong> Lossless,
+         ${fmtNum(r.measured && r.measured.lufs)} LUFS (target ${targets.lufs}),
+         true peak ${fmtNum(r.measured && r.measured.peak)} dBTP (ceiling ${targets.true_peak}),
+         clean tail.</p></div>`
+    : `<div class="box"><p><strong>Not ready to publish.</strong> What is missing:</p>
+       <ul>${[...(r.missing || []), ...(r.unknown || [])]
+              .map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+
+  html += r.lossless === false ? lossyBlock(d) : masterForm();
+  el.innerHTML = html;
+  wirePublish(d);
+  renderMasterReport(lastMaster || {});
+}
+
+const fmtNum = v => (v === null || v === undefined) ? "—" : Number(v).toFixed(1);
+
+// The mastering refusal, right where you click — and above all: what to do instead.
+function lossyBlock(d) {
+  const codec = esc((d.ready || {}).codec || "lossy");
+  const m = d.manifest, code = d.code || {};
+  let after;
+  if (!m) {
+    after = `<p class="note warn">This take has no recorded settings, so there
+      is nothing to prefill. Reconstruct its settings below ("Settings for this
+      take") first, then come back here.</p>`;
+  } else {
+    const caveat = code.match === false
+      ? `<p class="note warn">Careful: this take was produced by a different
+         version of the code. The form will be filled with its settings, but the
+         result will not be identical.</p>`
+      : code.match === null
+      ? `<p class="note warn">The version of the code that produced this take is
+         unknown: the result may differ.</p>` : "";
+    after = `<button id="regen" style="margin-top:8px">Generate again as lossless</button>
+      ${caveat}`;
+  }
+  return `
+    <div class="box stop">
+      <p><strong>Lossy source (${codec}): cannot be mastered.</strong></p>
+      <p>A ${codec} does not become lossless again. The information was thrown
+         away at encoding time; converting it back to WAV only puts ${codec}
+         inside a larger container.</p>
+      <p><strong>What to do instead:</strong> generate the same take again in
+         <code>wav</code>, then master the result.</p>
+    </div>
+    ${after}
+    <label class="inline"><input type="checkbox" id="mforce">
+      Master it anyway — <span class="warn">result not publishable</span>,
+      for a listen only</label>
+    <div id="forceform"></div>`;
+}
+
+function masterForm() {
+  return `
+    <div class="row">
+      <div><label>Target LUFS</label><input id="mlufs" type="number" step="0.5" value="${targets.lufs}"></div>
+      <div><label>True peak (dBTP)</label><input id="mtp" type="number" step="0.1" value="${targets.true_peak}"></div>
+    </div>
+    <div class="row">
+      <div><label>Lead-in silence (s)</label><input id="mhead" type="number" step="0.5" value="${targets.head}"></div>
+      <div><label>Trailing silence (s)</label><input id="mtail" type="number" step="0.5" value="${targets.tail}"></div>
+    </div>
+    <div class="row">
+      <div><label>Bit depth</label><select id="mbits">
+        <option value="24">24 bit</option><option value="16">16 bit</option></select></div>
+      <div><label>Container</label><select id="mflac">
+        <option value="">wav</option><option value="1">flac</option></select></div>
+    </div>
+    <button id="masterbtn" class="go" style="margin-top:9px">Master</button>
+    <button id="masterstop" style="margin-top:6px" disabled>Stop mastering</button>
+    <div id="masterreport"></div>`;
+}
+
+function wirePublish(d) {
+  const regen = $("regen");
+  if (regen) regen.onclick = () => prefillLossless(d);
+  const force = $("mforce");
+  if (force) force.onchange = () => {
+    $("forceform").innerHTML = force.checked ? masterForm() : "";
+    wirePublish(d);
+    renderMasterReport(lastMaster || {});
+  };
+  const btn = $("masterbtn");
+  if (btn) btn.onclick = () => startMaster(d.name, !!(force && force.checked));
+  const stop = $("masterstop");
+  if (stop) stop.onclick = async () => {
+    if (confirm("Stop the running master?"))
+      await api("/api/master/stop", { method: "POST" });
+  };
+}
+
+async function startMaster(name, force) {
+  const num = id => $(id) && $(id).value !== "" ? Number($(id).value) : null;
+  const body = {
+    name, force,
+    lufs: num("mlufs"), true_peak: num("mtp"),
+    head: num("mhead"), tail: num("mtail"),
+    bits: $("mbits") ? Number($("mbits").value) : null,
+    flac: !!($("mflac") && $("mflac").value),
+  };
+  try {
+    await api("/api/master", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch (e) { alert(e.message); }
+  paintMaster(await api("/api/master/state"));
+}
+
+// The numbers ./master prints are worth reading: they arrive here through
+// --report rather than through a re-read of the log.
+function renderMasterReport(m) {
+  const el = $("masterreport");
+  if (!el) return;
+  const rep = m.report;
+  if (!rep || !rep.source || !detail || rep.source.name !== detail.name) {
+    el.innerHTML = ""; return;
+  }
+  const b = rep.before || {}, a = rep.after || {}, t = rep.targets || {};
+  const rows = b.lufs === undefined ? "" : `
+    <table><thead><tr><th>measure</th><th>before</th><th>after</th><th>target</th></tr></thead>
+    <tbody>
+      <tr><td class="lab">integrated</td><td class="n">${fmtNum(b.lufs)}</td>
+          <td class="n">${fmtNum(a.lufs)}</td><td class="n">${t.lufs} LUFS</td></tr>
+      <tr><td class="lab">true peak</td><td class="n">${fmtNum(b.true_peak)}</td>
+          <td class="n">${fmtNum(a.true_peak)}</td><td class="n">≤ ${t.true_peak} dBTP</td></tr>
+      <tr><td class="lab">range</td><td class="n">${fmtNum(b.lra)}</td>
+          <td class="n">${fmtNum(a.lra)}</td><td class="n">LU</td></tr>
+      <tr><td class="lab">tail</td><td class="n" colspan="3">${b.tail_clean
+          ? `clean (${Number(b.tail).toFixed(3)})`
+          : `<span class="warn">cut off (${Number(b.tail).toFixed(3)}, ceiling ${t.tail_max})</span>`}</td></tr>
+    </tbody></table>`;
+  const out = rep.out || {};
+  el.innerHTML = `
+    <div class="box ${rep.error ? "stop" : "good"}" style="margin-top:12px">
+      ${rep.error ? `<p><strong>Mastering stopped.</strong> ${esc(rep.error)}</p>` : ""}
+      ${out.name ? `<p><strong>Written:</strong> <span class="fp">${esc(out.name)}</span>
+         ${out.renamed_from ? `<br><span class="warn">${esc(out.renamed_from)} already existed —
+            nothing was overwritten.</span>` : ""}
+         ${out.codec ? `<br>${esc(out.codec)}, ${esc(out.sample_rate)} Hz, ${out.bits} bit,
+            ${out.size_mb} MB` : ""}</p>` : ""}
+      ${rows}
+    </div>`;
+}
+
+// ------------------------------------------ generate again as lossless (06)
+
+function prefillLossless(d) {
+  const m = d.manifest;
+  if (!m) return;
+  const p = m.params || {};
+  const set = (id, value) => { if (value !== null && value !== undefined) $(id).value = value; };
+  const pick = (id, value) => {
+    const wanted = base(value);
+    if (!wanted) return null;
+    const ok = [...$(id).options].some(o => o.value === wanted);
+    $(id).value = ok ? wanted : "";
+    return ok ? null : wanted;
+  };
+
+  const missing = [];
+  let miss = pick("preset", m.preset); if (miss) missing.push(`preset "${miss}"`);
+  miss = pick("lyrics", m.lyrics_file); if (miss) missing.push(`lyrics "${miss}"`);
+  miss = pick("reference", p.reference_audio); if (miss) missing.push(`reference "${miss}"`);
+
+  $("strength").value = p.reference_audio && p.audio_cover_strength != null
+    ? p.audio_cover_strength : "";
+  set("bpm", p.bpm); set("duration", p.duration); set("seed", p.seed);
+  $("infer").value = p.infer_method === "sde" ? "sde" : "";
+  $("fmt").value = "wav";                       // the point of the whole operation
+  // A touch-up or an added track would divert the command: we start from a clean
+  // generation.
+  $("legotrack").value = ""; sel = null;
+  $("rfrom").value = ""; $("rto").value = ""; $("selinfo").textContent = "";
+  draw(); updateLegoInfo(); buildCmd();
+
+  const code = d.code || {};
+  $("fmtnote").innerHTML =
+    `Form filled from the settings of <span class="fp">${esc(d.name)}</span>,
+     format forced to <code>wav</code>.`
+    + (missing.length ? ` <span class="warn">Not found in the repository: ${esc(missing.join(", "))} —
+        pick by hand.</span>` : "")
+    + (m.command ? `<br>Original command: <code>${esc(m.command)}</code>` : "")
+    + (code.match === false
+        ? ` <span class="warn">The code has changed since: the result will not be identical.</span>` : "")
+    + (code.match === null
+        ? ` <span class="warn">Original version of the code unknown: the result may differ.</span>` : "");
+  $("preset").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ------------------------------------------ reconstructed manifest (08)
+
+function reconstructButton() {
+  return `<button id="rebuild" style="margin-top:10px">Reconstruct the settings</button>
+          <div id="rebuildform"></div>`;
+}
+
+function wireReconstruct() {
+  const b = $("rebuild");
+  if (b) b.onclick = () => openReconstruct();
+}
+
+async function openReconstruct() {
+  const d = await api(`/api/reconstruct/${encodeURIComponent(current)}`);
+  const g = d.deduced || {};
+  const s = await api("/api/state");
+  const opts = (items, chosen) => '<option value="">— none —</option>' +
+    items.map(i => `<option value="${esc(i)}" ${i === chosen ? "selected" : ""}>${esc(i)}</option>`).join("");
+  $("rebuildform").innerHTML = `
+    <div class="box">
+      <p><strong>Reconstructed settings are not original settings.</strong>
+         The seed is read from the file name — that is a guess — and the code
+         that produced this take stays unknown. It will be marked as such, in
+         the file and here.</p>
+      ${g.preset_note ? `<p class="warn">${esc(g.preset_note)}</p>` : ""}
+      <p>Read from the file: ${g.duration || "?"} s, ${esc(g.sample_rate || "?")} Hz,
+         ${esc(g.codec || "?")} — fingerprint <span class="fp">${esc((g.fingerprint || "").split(":").pop().slice(0, 10))}</span>.</p>
+    </div>
+    <label>Preset</label><select id="cpreset">${opts(s.presets, g.preset)}</select>
+    <label>Lyrics</label><select id="clyrics">${opts(s.lyrics, null)}</select>
+    <div class="row">
+      <div><label>Seed (a guess)</label><input id="cseed" type="number" value="${g.seed ?? ""}"></div>
+      <div><label>Duration (s)</label><input id="cduration" type="number" value="${g.duration ?? ""}"></div>
+    </div>
+    <div class="row">
+      <div><label>BPM</label><input id="cbpm" type="number" placeholder="unknown"></div>
+      <div><label>Key</label><input id="ckey" placeholder="unknown"></div>
+    </div>
+    <label>Style (caption)</label><textarea id="ccaption" rows="2" placeholder="unknown"></textarea>
+    <label>Note — where these values come from</label>
+    <input id="cnote" placeholder="e.g. preset found by hand">
+    <button id="csave" class="go" style="margin-top:9px">Attach these settings</button>`;
+  $("csave").onclick = () => saveReconstruct(d.has_manifest);
+}
+
+async function saveReconstruct(exists) {
+  if (exists && !confirm(
+      "Settings already exist for this take. Replace them with reconstructed "
+      + "ones? Original settings are worth more."))
+    return;
+  const num = id => $(id).value === "" ? null : Number($(id).value);
+  const str = id => $(id).value || null;
+  try {
+    await api(`/api/reconstruct/${encodeURIComponent(current)}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        preset: str("cpreset"), lyrics: str("clyrics"), seed: num("cseed"),
+        bpm: num("cbpm"), duration: num("cduration"), keyscale: str("ckey"),
+        caption: str("ccaption"), note: str("cnote"), confirm: !!exists,
+      }) });
+  } catch (e) { alert(e.message); return; }
+  load(current);
+}
+
+const GRAPH_H = 110;     // px CSS, doit valoir la hauteur CSS de #canvas
+
+function draw() {
+  // The band lanes change with exactly what the bars change with — the take and
+  // the selection. Painting them from here rather than from each of the five
+  // callers is one less list to keep complete.
+  drawBands();
+  const c = $("canvas"), ctx = c.getContext("2d");
+  const w = c.width = c.clientWidth * devicePixelRatio;
+  const h = c.height = GRAPH_H * devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  if (!energy || !energy.low.length) return;
+  const n = energy.low.length, bw = w / n;
+  const css = getComputedStyle(document.documentElement);
+
+  // `sel` is kept across a switch to an inspiration so the repaint selection
+  // survives it — which is exactly why it must not be drawn here: it would be
+  // shading seconds of a different track.
+  if (sel && mode === "take") {                // selected band
+    ctx.fillStyle = css.getPropertyValue("--accent").trim() + "26";
+    ctx.fillRect(sel[0] / n * w, 0, (sel[1] - sel[0]) / n * w, h);
+  }
+  ctx.fillStyle = css.getPropertyValue("--bar").trim();
+  energy.low.forEach((v, i) => {
+    const bh = Math.max(1, v * (h - 4));
+    ctx.globalAlpha = (sel && mode === "take" && (i < sel[0] || i >= sel[1])) ? 0.3 : 1;
+    ctx.fillRect(i * bw, h - bh, Math.max(1, bw - devicePixelRatio), bh);
+  });
+  ctx.globalAlpha = 1;
+  if (!struct) return;
+
+  // section boundaries
+  ctx.strokeStyle = css.getPropertyValue("--dim").trim();
+  ctx.globalAlpha = 0.4; ctx.lineWidth = devicePixelRatio;
+  (struct.sections || []).forEach(sc => {
+    ctx.beginPath(); ctx.moveTo(sc.start * bw, 0); ctx.lineTo(sc.start * bw, h); ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+
+  // courbe de voix
+  const voc = (struct.per_second || {}).vocal || [];
+  if (voc.length) {
+    ctx.strokeStyle = css.getPropertyValue("--voice").trim();
+    ctx.lineWidth = 1.8 * devicePixelRatio;
+    ctx.beginPath();
+    voc.forEach((v, i) => {
+      const y = h - v * (h - 4);
+      i ? ctx.lineTo(i * bw + bw / 2, y) : ctx.moveTo(i * bw + bw / 2, y);
+    });
+    ctx.stroke();
+  }
+
+  // drops
+  ctx.fillStyle = css.getPropertyValue("--drop").trim();
+  (struct.drops || []).forEach(d => {
+    const x = d * bw + bw / 2, t = 5 * devicePixelRatio;
+    ctx.beginPath(); ctx.moveTo(x - t, 0); ctx.lineTo(x + t, 0); ctx.lineTo(x, t * 1.8);
+    ctx.closePath(); ctx.fill();
+  });
+}
+
+/* -------------------------------------------------------- band lanes --
+   The bars say where the bass is; until now nothing said anything about the
+   rest of the spectrum, and half of what an arrangement does happens there — a
+   break that strips the body away, the hats that come in eight bars before the
+   drop, an outro that keeps the mids and drops everything else.
+
+   Two lanes and not three: the low band is already the bars above, and drawing
+   it a second time would only say the same thing smaller.
+
+   Why lanes rather than a stack. The first attempt stacked the three bands as
+   shares of each second, which is the drawing that reads instantly — and which
+   the measurement cannot support. A share is biased by the width of its band:
+   the mids span 150 Hz to 2 kHz against the bass's 150, so they hold most of
+   the total at every second whatever the music does. Measured on
+   `all-dayggering-seed7`, the mid share never left the 49–80% range across 200
+   seconds. Stacked, that is a straight line with a wobble.
+
+   So each band is scaled by its own loudest second (`_own_scale`, in
+   measures.py), and each gets a lane. What a lane says is "this band, against
+   itself"; what it deliberately cannot say is which band is louder than which.
+   Intensity rather than height carries the value: eight pixels is not enough
+   room for a bar to be read, and it is plenty for a shade.                  */
+
+const BANDS_H = 18;      // CSS px, must equal the CSS height of #bands
+
+// The lane is smoothed over this many seconds before being drawn. Not to make
+// it prettier: a one-second FFT window catches the beat wherever it happens to
+// fall, so a raw band curve alternates loud/quiet from second to second all the
+// way along. The bars survive that — a jagged height still reads as a height —
+// but shading does not: rendered raw, both lanes came out as dither with no
+// structure in them, which was the first version of this drawing.
+//
+// Three seconds is under the shortest section the analysis will cut (four), so
+// the smoothing cannot invent a passage or swallow one.
+const LANE_SMOOTH = 3;
+
+const LANES = [
+  { key: "mid", colour: "--mid", label: "mids 150 Hz\u20132 kHz" },
+  { key: "high", colour: "--high", label: "highs 2\u20138 kHz" },
+];
+
+// A centred moving average over `w` points. Shared by the band lanes and by the
+// stem sparklines: both draw a per-second curve in a strip a few pixels tall,
+// and both are unreadable raw for the same reason — a one-second window catches
+// the beat wherever it falls.
+function smooth(curve, w) {
+  const out = [];
+  for (let i = 0; i < curve.length; i++) {
+    const a = Math.max(0, i - (w >> 1)), b = Math.min(curve.length, i + (w >> 1) + 1);
+    let sum = 0;
+    for (let j = a; j < b; j++) sum += curve[j];
+    out.push(sum / (b - a));
+  }
+  return out;
+}
+
+// A band curve as its lane draws it: smoothed, then rescaled against its own
+// maximum again. The second step matters — averaging pulls every value towards
+// the middle, and a lane that never reaches full shade would say this band
+// never carries the track.
+function laneCurve(curve) {
+  const out = smooth(curve, LANE_SMOOTH);
+  const peak = Math.max(...out) || 1;
+  return out.map(v => v / peak);
+}
+
+function drawBands() {
+  const c = $("bands"), ctx = c.getContext("2d");
+  const w = c.width = c.clientWidth * devicePixelRatio;
+  const h = c.height = BANDS_H * devicePixelRatio;
+  const rule = devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  const css = getComputedStyle(document.documentElement);
+  ctx.fillStyle = css.getPropertyValue("--line").trim();
+  ctx.fillRect(0, 0, w, rule);          // separates the lanes from the bars
+  const n = axisSeconds();
+  if (!n) return;
+
+  // One device pixel is left showing between the two lanes: two dark shades
+  // touching read as a single thick band, and the whole point is that they are
+  // two separate measurements.
+  const lane = (h - rule) / LANES.length;
+  LANES.forEach((band, row) => {
+    // A take analysed before the bands existed has no curve here. Nothing is
+    // drawn rather than a lane of zeros, which would claim silence.
+    const raw = (energy || {})[band.key];
+    if (!raw || !raw.length) return;
+    const curve = laneCurve(raw);
+    const y = rule + row * lane, bw = w / n;
+    const height = lane - rule;
+    ctx.fillStyle = css.getPropertyValue(band.colour).trim();
+    curve.forEach((v, i) => {
+      // Floor at a faint tint: a lane that goes fully transparent reads as "no
+      // measurement here", which is what an unanalysed take looks like.
+      ctx.globalAlpha = 0.08 + 0.92 * Math.min(1, Math.max(0, v));
+      if (sel && (i < sel[0] || i >= sel[1])) ctx.globalAlpha *= 0.35;
+      // Snapped to whole device pixels, and each rect ending exactly where the
+      // next begins. Drawn at their fractional positions, these translucent
+      // rects overlapped by a fraction of a pixel and the seams compounded into
+      // a visible one-second grid across the lane — the shading read as texture
+      // rather than as a value.
+      const x0 = Math.round(i * bw), x1 = Math.round((i + 1) * bw);
+      ctx.fillRect(x0, y, Math.max(1, x1 - x0), height);
+    });
+  });
+  ctx.globalAlpha = 1;
+}
+
+/* -------------------------------------------------------- sung ribbon --
+   The graph says what is in the track; the ribbon answers the one question you
+   ask when looking for the lyrics — from where does the singing start, and how
+   far does it go. The vocal curve already answered it, but it reads as a second
+   energy silhouette: it says "this is rising", not "there is singing here". The
+   table does say it, but by whole section and three lines away from the
+   drawing.
+
+   Two measurements, not one, because neither is enough on its own:
+
+   - The stretches come from `has_vocal`, section by section. Thresholding the
+     curve second by second at VOICE_THRESHOLD was tried and measured across the
+     26 takes in the folder: between 68% and 99% of the track came out sung, 93%
+     at the median — that is, a solid ribbon along the whole length of almost
+     every take. The reason is in `vocal_curve`: it is normalised by its own
+     95th percentile, so its median is above the threshold by construction.
+     `has_vocal` escapes that because it averages over a section, where an
+     instrumental passage falls back towards 0.2.
+   - The fill is solid, and not shaded by the second-by-second curve: that curve
+     is drawn just above, at its full resolution. Repeating it as a transparency
+     inside 14 px added nothing but a one-second moiré, where the ribbon has only
+     one thing to say.
+
+   So no threshold is defined here: "sung" stays whatever the analysis says it
+   is, and the ribbon cannot contradict the table's "vocal" column.
+
+   Locating a specific lyric line takes something else entirely — a forced
+   alignment of the manifest's text against the audio. That is issue 02.     */
+
+const RIBBON_H = 14;     // CSS px, must equal the CSS height of #ribbon
+
+// An instrumental take has nothing to locate, and its manifest knows that better
+// than the estimate — which a centred synth would make lie the other way.
+function isInstrumental() {
+  return (((detail || {}).manifest || {}).params || {}).instrumental === true;
+}
+
+// Consecutive sections that agree on `has_vocal` form a single stretch: what we
+// are after is "from where does the singing start", not the timbre boundary that
+// made the analysis cut in the middle of a verse.
+function vocalStretches() {
+  const sections = (struct && struct.sections) || [];
+  if (!sections.length) return null;
+  const out = [];
+  sections.forEach(x => {
+    const last = out[out.length - 1];
+    if (last && last.sung === !!x.has_vocal && last.end === x.start) last.end = x.end;
+    else out.push({ start: x.start, end: x.end, sung: !!x.has_vocal });
+  });
+  return out;
+}
+
+function drawRibbon() {
+  stretches = isInstrumental() ? [] : vocalStretches();
+  renderRibbonNote();
+
+  const c = $("ribbon"), ctx = c.getContext("2d");
+  const w = c.width = c.clientWidth * devicePixelRatio;
+  const h = c.height = RIBBON_H * devicePixelRatio;
+  const rule = devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  const css = getComputedStyle(document.documentElement);
+  ctx.fillStyle = css.getPropertyValue("--line").trim();
+  ctx.fillRect(0, 0, w, rule);          // separates the ribbon from the bars
+  if (!stretches || !stretches.length) return;
+
+  // timeToX, like everything laid on this graph: the axis is the bars' one, one
+  // per second, and not the duration <audio> reports.
+  ctx.fillStyle = css.getPropertyValue("--voice").trim();
+  stretches.filter(t => t.sung).forEach(t => {
+    const x = timeToX(t.start, w);
+    ctx.fillRect(x, rule, Math.max(1, timeToX(t.end, w) - x), h - rule);
+  });
+}
+
+function renderRibbonNote() {
+  const box = $("sections");
+  if (!detail) { box.innerHTML = ""; return; }   // rien d'ouvert, ou en cours
+  if (isInstrumental()) {
+    box.innerHTML = `<p class="note">Instrumental take according to its
+      settings: no singing to locate, so the ribbon stays empty.</p>`;
+    return;
+  }
+  if (!stretches) {
+    box.innerHTML = `<p class="note">No structural analysis for this take,
+      so no ribbon.</p>`;
+    return;
+  }
+  const n = axisSeconds();
+  const quiet = stretches.filter(t => !t.sung);
+  const sung = stretches.filter(t => t.sung);
+  const share = n ? Math.round(sung.reduce((a, t) => a + (t.end - t.start), 0) / n * 100) : 0;
+  const where = quiet.length
+    ? `no vocals from ${quiet.map(t => `${t.start} to ${t.end} s`).join(", ")}`
+    : "no vocal-free passage detected";
+  box.innerHTML = `<p class="note">
+    <span style="color:var(--voice)">▬</span> ${share}% of the track is sung,
+    ${where} — <strong>an estimate</strong>: a centred synth passes for singing
+    here, and a mono track shows as sung from end to end. It locates the
+    singing, not the words.</p>`;
+}
+
+function renderStructure() {
+  if (!struct || !struct.sections) { $("structtable").innerHTML = '<p class="empty">—</p>'; return; }
+  const inherited = struct.sections.some(x => !x.bpm_measured);
+  $("structtable").innerHTML = `
+    <p class="note" style="margin:0 0 6px">
+      Overall tempo <strong>~${Math.round(struct.tempo_global)} BPM</strong>
+      ${struct.drops.length ? ` · drops at ${struct.drops.map(d => d + " s").join(", ")}` : ""}
+    </p>
+    <table><thead><tr>
+      <th>from</th><th>to</th><th>BPM</th><th>bass</th><th>vocals</th><th>section</th>
+    </tr></thead><tbody>
+    ${struct.sections.map((x, i) => `
+      <tr class="clickable" data-a="${x.start}" data-b="${x.end}">
+        <td>${x.start}s</td><td>${x.end}s</td>
+        <td>${Math.round(x.bpm)}${x.bpm_measured ? "" : "*"}</td>
+        <td>${x.bass.toFixed(2)}</td>
+        <td>${x.has_vocal ? "yes" : "—"}</td>
+        <td class="lab">${x.label}</td>
+      </tr>`).join("")}
+    </tbody></table>
+    ${inherited ? '<p class="note">* section too short to measure a tempo — the overall value is used.</p>' : ""}
+    <p class="note">Signal-processing estimates: vocal detection mistakes a
+      centred synth for singing, and gets a mono track wrong.</p>`;
+  document.querySelectorAll("#structtable tr.clickable").forEach(tr => tr.onclick = () => {
+    // A section is two different things depending on the track. On a take it is
+    // a region to regenerate; on an inspiration there is nothing to regenerate,
+    // so it is a passage to read — the whole of it, and not the one second the
+    // playhead lands on.
+    if (mode !== "take") { selectSection(+tr.dataset.a, +tr.dataset.b); return; }
+    sel = [+tr.dataset.a, +tr.dataset.b];
+    $("rfrom").value = sel[0]; $("rto").value = sel[1];
+    $("selinfo").textContent = `— ${sel[0]}s to ${sel[1]}s`;
+    markSelectedRow(sel[0]);
+    draw(); buildCmd(); updateLegoInfo();
+  });
+}
+
+/* ------------------------------------------------------------- stems --
+   The one part of the studio that asks a model what is in a track rather than
+   measuring it. Everything else on this page is signal processing and says so;
+   this says "drums, bass, vocals, other" because Demucs was trained on four
+   stems, and it is the only thing here that can tell a kick from a bass line
+   sharing the same band.
+
+   Nothing triggers it. A separation costs about a third of the track's duration
+   and 2.3 GB — measured, 64 s for a 200 s take — so opening a take serves
+   whatever is already in cache and offers a button for the rest. Same shape as
+   the alignment, for the same reason.
+
+   Four sources and no more: `other` is every harmonic instrument that is
+   neither bass nor voice, and asking which of them it is would be asking the
+   model a question it has no vocabulary for. The panel says `other` and leaves
+   it there rather than guessing "guitar".                                    */
+
+// A sparkline of a source's share, second by second, drawn in the row itself:
+// the verdict says whether it plays, this says *when*. Bars of one second, at
+// the width the table gives us.
+function stemSpark(raw, colour) {
+  if (!raw || !raw.length) return "";
+  // Smoothed like the lanes, but deliberately not rescaled: the height here is
+  // the share itself, and a source holding 8% must not be drawn as tall as one
+  // holding 46%. Comparing the rows is the whole point of the column.
+  const curve = smooth(raw, LANE_SMOOTH);
+  const w = 120, h = 16, bw = w / curve.length;
+  const bars = curve.map((v, i) =>
+    `<rect x="${(i * bw).toFixed(2)}" y="${(h - Math.max(0.6, v * h)).toFixed(2)}" ` +
+    `width="${Math.max(0.6, bw).toFixed(2)}" height="${Math.max(0.6, v * h).toFixed(2)}"/>`
+  ).join("");
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" ` +
+         `style="display:block;fill:${colour}"><g opacity="0.85">${bars}</g></svg>`;
+}
+
+function renderStems(d) {
+  const box = $("stemstable");
+  const st = (d || {}).stems;
+  if (!st || !st.sources) {
+    box.innerHTML = `<p class="empty">Not separated. The bands above split the
+      spectrum; they cannot tell a kick from a bass line, both of which live
+      under 150 Hz.</p>`;
+    return;
+  }
+  const playing = st.sources.filter(x => st.presence[x].present);
+  box.innerHTML = `
+    <table><thead><tr>
+      <th>source</th><th>plays</th><th>share</th><th>seconds</th><th>where</th>
+    </tr></thead><tbody>
+    ${st.sources.map(x => {
+      const p = st.presence[x];
+      return `<tr>
+        <td class="lab">${esc(x)}</td>
+        <td>${p.present ? "yes" : "—"}</td>
+        <td>${(p.share * 100).toFixed(0)}%</td>
+        <td>${p.seconds}s</td>
+        <td>${stemSpark(st.per_second[x], "var(--accent)")}</td>
+      </tr>`;
+    }).join("")}
+    </tbody></table>
+    <p class="note">${playing.length ? esc(playing.join(", ")) : "nothing"}
+      above the bar — a source counts as playing when it holds 10% of the energy
+      for at least 8 seconds. <strong>share</strong> is its mean slice of the
+      four, <strong>seconds</strong> how long it clears the bar.</p>
+    <p class="note">Separated by ${esc(st.model)}, four stems and only four:
+      <code>other</code> holds every harmonic instrument that is neither the
+      bass nor the voice — guitars, keys, pads, strings, all together. An
+      <em>absent</em> verdict is the solid one here; a present one can be bleed
+      from the three that do play.</p>` + renderTags(st.tags);
+}
+
+/* What is playing inside `other` — present only when the separation was asked
+   to tag as well. Deliberately reported as families and never as one
+   instrument: no single label measured over four tracks cleared 0.19, so the
+   readable signal is a cluster agreeing (Pizzicato + Bowed string + Violin)
+   rather than any one score. See aimc/analysis/tags.py for the calibration.
+
+   Silence is a result and is printed as one. A breakbeat track leaves nothing
+   in `other` but bleed and reverb tails, and the honest answer there is "there
+   was nothing to name" — not a blank panel that reads like a failure.        */
+function renderTags(t) {
+  if (!t || !t.families) {
+    return `<p class="note">Not named. A separation can say that something
+      harmonic is playing in <code>other</code>, not what it is — tick
+      <em>name what plays</em> and separate again to ask.</p>`;
+  }
+  if (t.error) return `<p class="note warn">${esc(t.error)}</p>`;
+
+  const heard = t.families.filter(f => f.heard);
+  const rows = heard.map(f => `<tr>
+      <td class="lab">${esc(f.family)}</td>
+      <td>${f.score.toFixed(3)}</td>
+      <td class="note">${f.labels.map(l =>
+        `${esc(l.label)} ${l.score.toFixed(3)}`).join(", ")}</td>
+    </tr>`).join("");
+
+  // The receipt for the claim that separating was worth it. If these two are
+  // close, the stem was no better than the mix and nothing above it is worth
+  // reading — better shown than asserted.
+  const u = (t.umbrella || {})["Musical instrument"] || {};
+  const receipt = (u.mix === undefined) ? "" :
+    ` <code>Musical instrument</code> scored ${u.mix.toFixed(3)} on the mix and
+      ${u.stem.toFixed(3)} on the stem — that gap is what the separation buys.`;
+
+  return `
+    <h4>Playing in <code>other</code></h4>
+    ${heard.length ? `<table><thead><tr>
+        <th>family</th><th>score</th><th>what agreed</th>
+      </tr></thead><tbody>${rows}</tbody></table>`
+      : `<p class="empty">Nothing above the bar. Either the track has no
+         sustained harmonic instrument, or what is left in <code>other</code>
+         once the drums, bass and voice come out is bleed rather than an
+         arrangement — which is the usual answer on a breakbeat track.</p>`}
+    <p class="note">A family counts when the mean of its three best labels
+      reaches 0.10. Families, never one instrument: nothing measured cleared
+      0.19 on a single label, so what is readable is several labels agreeing.
+      Read this as the weaker claim — silence here is the solid one.${receipt}</p>
+    <h4>Sounds like</h4>
+    <p class="note">${(t.genres || []).slice(0, 5).map(g =>
+        `${g.heard ? "<strong>" : ""}${esc(g.genre)} ${g.score.toFixed(3)}${
+          g.heard ? "</strong>" : ""}`).join(" · ") || "—"}</p>
+    <p class="note">Read off the mix, not the stems. Good on reggae — 0.218 on
+      a generated take, 0.286 on a real dub plate — and poor on bass music: real
+      jungle only reached 0.050 on <code>Drum and bass</code>. A low score here
+      is as likely to be the tagger's blind spot as the track's.</p>`;
+}
+
+/* The separation button and its job — apart from the table, like the
+   alignment's, because it repaints every two seconds and the table does not. */
+function paintStems(a) {
+  lastStems = a;
+  const box = $("stembox");
+  if (!box) return;
+  const open = mode === "take" ? current : insp;
+  const mine = a.take === open && a.source === mode;
+  if (a.running) {
+    // Whether this run was asked to name as well: the job only hands back the
+    // command line it was started with, which is the honest place to read it
+    // from — the checkbox may have been unticked since.
+    const naming = (a.cmd || "").includes("--tags");
+    box.innerHTML = mine
+      ? `<p class="note">Separating${naming ? " and naming" : ""} —
+         ${a.elapsed}s, about a third of the track's length${
+           naming ? ", roughly doubled by the naming" : ""}. The first run
+         downloads a 320 MB model${
+           naming ? ", and a 350 MB one beside it" : ""}.</p>
+         <button id="stemstop">Stop</button>`
+      : `<p class="note">Separating <code>${esc(a.take || "")}</code> — one at a
+         time.</p>`;
+    const stop = $("stemstop");
+    if (stop) stop.onclick = () => api("/api/stems/stop", { method: "POST" }).catch(() => {});
+    stemsWereRunning = true;
+    return;
+  }
+  // Just finished: /api/stems/state filed the result away, and reloading the
+  // take is what brings it back down.
+  if (stemsWereRunning) {
+    stemsWereRunning = false;
+    if (open) { mode === "take" ? load(open) : loadInspiration(open); return; }
+  }
+  if (!open) { box.innerHTML = ""; return; }
+  const failed = a.exit_code !== null && a.exit_code !== undefined && a.exit_code !== 0
+    && mine;
+  const done = !!((detail || {}).stems || {}).sources;
+  box.innerHTML =
+    (failed ? `<p class="note warn">The last separation failed
+       (exit ${a.exit_code}). The log is below.</p>` : "") +
+    `<button id="stembtn">${done ? "Separate again"
+       : (mode === "take" ? "Separate this take" : "Separate this track")}</button>
+     <label class="note"><input type="checkbox" id="stemtags"${
+       stemsWantTags ? " checked" : ""}> name what plays</label>` +
+    (done ? "" : `<p class="note">Pulls the mix into four stems to see which
+       families actually play — about a third of the track's length, and refused
+       while a generation or an alignment is running.</p>`) +
+    `<p class="note">Naming loads a second model and runs it on every chunk:
+       measured on a 40 s clip, the pass goes from 8 s to 15 s. It reports
+       instrument <em>families</em>, and often nothing at all — which on a
+       breakbeat track is the correct answer rather than a failure.</p>`;
+  $("stemtags").onchange = (e) => { stemsWantTags = e.target.checked; };
+  $("stembtn").onclick = startStems;
+}
+
+async function startStems() {
+  const box = $("stembox");
+  try {
+    const open = mode === "take" ? current : insp;
+    await api(`/api/stems/${encodeURIComponent(open)}?source=${mode}` +
+              `&tags=${stemsWantTags ? "true" : "false"}`, { method: "POST" });
+  } catch (e) {
+    box.innerHTML = `<p class="note warn">${esc(e.message)}</p>` + box.innerHTML;
+    return;
+  }
+  try { paintStems(await api("/api/stems/state")); } catch {}
+}
+
+/* ------------------------------------------------------------ playhead --
+   Two layers, two gestures. The graph (draw) says what is in the track; this
+   block says where we are in it, and lets you move around.                  */
+
+// The 10 s a kept moment turns into, imposed by the engine's reference reader
+// and written down in blend.py. Drawn here so a pick shows what it will take,
+// not just where it starts.
+const REFERENCE_SLOT_S = 10;
+
+const SCRUB_BAND = 16;   // CSS px: head band reserved for scrubbing
+const GRAB_PX = 5;       // CSS px: tolerance for grabbing the playhead itself
+
+// The axis is the bars' one: one bar per second, energy.low.length in total. The
+// duration <audio> reports comes from the container and slightly overshoots
+// (_compute_energy truncates the partial second); trusting it would make the
+// playhead drift against the bars over the length of the track.
+function axisSeconds() { return energy ? energy.low.length : 0; }
+
+function timeToX(t, width) {
+  const n = axisSeconds();
+  return n ? t / n * width : 0;
+}
+
+function eventToTime(e) {
+  const r = $("canvas").getBoundingClientRect(), n = axisSeconds();
+  return Math.max(0, Math.min(n, (e.clientX - r.left) / r.width * n));
+}
+
+const CURSOR_H = GRAPH_H + BANDS_H + RIBBON_H;   // the line crosses all three lanes
+
+function drawCursor() {
+  const c = $("cursor"), ctx = c.getContext("2d");
+  const w = c.width = c.clientWidth * devicePixelRatio;
+  const h = c.height = CURSOR_H * devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  if (!axisSeconds()) return;
+  drawPickMarks(ctx, w, h);
+  if (playAt === null) return;
+  const x = timeToX(playAt, w);
+  const ink = getComputedStyle(document.documentElement)
+                .getPropertyValue("--cursor").trim();
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 1.5 * devicePixelRatio;
+  ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  // A square handle, not a triangular one: the drops already put a triangle at
+  // the top of the graph, and two markers of the same shape would blur together.
+  const g = 4 * devicePixelRatio;
+  ctx.fillStyle = ink;
+  ctx.fillRect(x - g, 0, g * 2, g * 2);
+
+  // The current sung region is underlined here, on the layer that already
+  // redraws every frame: the ribbon itself stays static and is only repainted on
+  // a change of take or a resize.
+  const at = (stretches || []).find(t => playAt >= t.start && playAt < t.end);
+  if (at) {
+    const x0 = timeToX(at.start, w), t = 2 * devicePixelRatio;
+    ctx.fillRect(x0, h - t, Math.max(1, timeToX(at.end, w) - x0), t);
+  }
+}
+
+// The kept moments, on the layer that already redraws: a mark at the second
+// itself and a bar over the ten seconds it will contribute to a reference, so
+// what a pick actually takes is visible rather than implied.
+//
+// Two washes, and they are not the same claim: pale is what was *heard* — the
+// passage the measurements were read over — and solid is what will be *cut*,
+// ten seconds from where the pick starts. Drawing only one of them would hide
+// either what was listened to or what the engine is going to get.
+function drawPickMarks(ctx, w, h) {
+  if (mode !== "inspiration" || (!inspPicks.length && !inspSpan)) return;
+  const ink = getComputedStyle(document.documentElement)
+                .getPropertyValue("--accent").trim();
+  const t = 3 * devicePixelRatio;
+  const heard = (a, b) => {
+    const x = timeToX(a, w);
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.10;
+    ctx.fillRect(x, 0, Math.max(1, timeToX(b, w) - x), h);
+    ctx.globalAlpha = 1;
+  };
+  ctx.save();
+  // The passage being read right now, before it is kept: the row clicked in the
+  // table and the seconds on the graph have to be visibly the same thing.
+  if (inspSpan) heard(inspSpan.start, inspSpan.end);
+  inspPicks.forEach(p => {
+    if (p.until != null) heard(p.at, p.until);
+    const x = timeToX(p.at, w), x2 = timeToX(p.at + REFERENCE_SLOT_S, w);
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.22;
+    ctx.fillRect(x, 0, Math.max(1, x2 - x), h);
+    ctx.globalAlpha = 1;
+    ctx.fillRect(x - devicePixelRatio / 2, 0, Math.max(1, devicePixelRatio), h);
+    ctx.beginPath();
+    ctx.moveTo(x - t, h); ctx.lineTo(x + t, h); ctx.lineTo(x, h - t * 1.8);
+    ctx.closePath(); ctx.fill();
+  });
+  ctx.restore();
+}
+
+// Which section covers this instant. Upper bound excluded: at the exact second
+// of a boundary, the section that starts wins — never both.
+function sectionAt(t) {
+  const sections = (struct && struct.sections) || [];
+  for (let i = 0; i < sections.length; i++) {
+    if (t >= sections[i].start && t < sections[i].end) return i;
+  }
+  // The last second falls past the last bound: it belongs to it.
+  const last = sections.length - 1;
+  return last >= 0 && t >= sections[last].end ? last : -1;
+}
+
+function highlightSection() {
+  const rows = document.querySelectorAll("#structtable tbody tr");
+  const at = playAt === null ? -1 : sectionAt(playAt);
+  rows.forEach((tr, i) => tr.classList.toggle("playing", i === at));
+}
+
+function syncPlayhead() {
+  const p = $("player");
+  // readyState 0: the player has loaded nothing — a change of take, or
+  // preload="none" before the first playback. Its currentTime is then 0 by
+  // default and not by measurement; adopting it would plant the playhead at the
+  // far left as if we were at the start of the track, when we know nothing.
+  // Setting a position by hand (seekTo) is still possible: it is not
+  // overwritten here.
+  if (p.readyState > 0 && Number.isFinite(p.currentTime)) playAt = p.currentTime;
+  paintPosition();
+}
+
+function seekTo(t) {
+  const p = $("player");
+  playAt = t;
+  // The line follows the scrub, including while stopped: that is the answer to
+  // "what is being sung here?" as you drag the playhead around.
+  // readyState 0 (preload="none", nothing loaded): writing currentTime there
+  // sets the start position rather than seeking. If the browser refuses, we hold
+  // on to the request for loadedmetadata.
+  try { p.currentTime = t; } catch (e) { pendingSeek = t; }
+  paintPosition();
+}
+
+// Everything that depends on where the playhead is. Written out three times —
+// in seekTo, syncPlayhead and resetPlayhead — until a fourth item was added and
+// only two of the three got it.
+function paintPosition() {
+  drawCursor(); highlightSection(); highlightLyric(); refreshKeepButton();
+}
+
+// requestAnimationFrame rather than timeupdate, which only fires ~4 times a
+// second — far too little for a playhead that has to keep up with the ear. The
+// loop stops as soon as the sound stops: nothing runs on a paused take.
+function tick() {
+  if ($("player").paused || $("player").ended) { rafId = null; return; }
+  syncPlayhead();
+  rafId = requestAnimationFrame(tick);
+}
+function startTicking() { if (rafId === null) rafId = requestAnimationFrame(tick); }
+function stopTicking() {
+  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
+}
+
+function resetPlayhead() {
+  stopTicking();
+  playAt = null; pendingSeek = null; scrubbing = false;
+  paintPosition();
+}
+
+// Only the button's label changes as the playhead moves — repainting the whole
+// panel would blow away a half-typed note sixty times a second.
+function refreshKeepButton() {
+  if (mode !== "inspiration") return;
+  const btn = $("keepbtn"), at = playAt === null ? null : Math.round(playAt);
+  if (btn && at !== null) { btn.textContent = `Keep the moment at ${at}s`; return; }
+  // The button appears with the first known position and disappears with it.
+  // Only that change needs the panel rebuilt.
+  if (!!btn !== (at !== null)) renderPicks();
+}
+
+(() => {
+  const p = $("player");
+  p.addEventListener("loadedmetadata", () => {
+    if (pendingSeek !== null) { p.currentTime = pendingSeek; pendingSeek = null; }
+    syncPlayhead();
+  });
+  p.addEventListener("play", startTicking);
+  p.addEventListener("pause", () => { stopTicking(); syncPlayhead(); });
+  p.addEventListener("ended", () => { stopTicking(); syncPlayhead(); });
+  p.addEventListener("seeked", syncPlayhead);
+  // Seeking in the player's native bar has to move the playhead too.
+  p.addEventListener("timeupdate", () => { if (rafId === null) syncPlayhead(); });
+})();
+
+// The canvas gesture was already taken: dragging picks a region to regenerate.
+// Scrubbing therefore reserves two places that do not bite into it — the head
+// band, and the playhead itself — and the selection keeps all the rest,
+// unchanged.
+function inScrubZone(e) {
+  const r = $("canvas").getBoundingClientRect();
+  if (!axisSeconds()) return false;
+  if (e.clientY - r.top <= SCRUB_BAND) return true;
+  if (playAt === null) return false;
+  return Math.abs(e.clientX - r.left - timeToX(playAt, r.width)) <= GRAB_PX;
+}
+
+function posToSec(e) {
+  const r = $("canvas").getBoundingClientRect();
+  const n = energy ? energy.low.length : 0;
+  return Math.max(0, Math.min(n, Math.round((e.clientX - r.left) / r.width * n)));
+}
+$("canvas").onmousedown = e => {
+  if (!energy) return;
+  if (inScrubZone(e)) { scrubbing = true; seekTo(eventToTime(e)); return; }
+  // Dragging picks a region to regenerate, and an inspiration cannot be
+  // regenerated. Rather than filling `rfrom`/`rto` with seconds of the wrong
+  // track, the gesture simply does not arm here.
+  if (mode !== "take") return;
+  dragging = posToSec(e);
+};
+$("canvas").onmousemove = e => {
+  if (scrubbing) { seekTo(eventToTime(e)); return; }
+  if (dragging === null) {
+    $("canvas").style.cursor = inScrubZone(e) ? "ew-resize"
+      : (mode === "take" ? "crosshair" : "default");
+    return;
+  }
+  const b = posToSec(e);
+  sel = [Math.min(dragging, b), Math.max(dragging, b)];
+  $("selinfo").textContent = `— ${sel[0]}s to ${sel[1]}s`;
+  draw();
+};
+window.onmouseup = () => {
+  if (scrubbing) { scrubbing = false; return; }
+  if (dragging === null) return;
+  dragging = null;
+  if (sel && sel[1] - sel[0] >= 2) { $("rfrom").value = sel[0]; $("rto").value = sel[1]; buildCmd(); }
+};
+// The cursor lives on its own layer: draw() does not erase it, so it is only
+// redrawn on a resize, where both bitmaps change size.
+window.onresize = () => { draw(); drawRibbon(); drawCursor(); };
+
+$("clearrepaint").onclick = () => {
+  sel = null; $("rfrom").value = ""; $("rto").value = "";
+  $("selinfo").textContent = ""; draw(); buildCmd();
+};
+
+function payload() {
+  const num = id => $(id).value === "" ? null : Number($(id).value);
+  const str = id => $(id).value || null;
+  const ranged = $("rfrom").value !== "" && $("rto").value !== "" && current;
+  // Picking an instrument turns the interval into an added track rather than a
+  // touch-up: the two operations share the same selection, but --lego and
+  // --repaint are mutually exclusive on the engine's side.
+  const lego = !!($("legotrack").value && current);
+  const repainting = ranged && !lego;
+  const derived = lego || repainting;
+  return {
+    preset: derived ? null : str("preset"),
+    style: derived ? null : str("style"),
+    lyrics: derived ? null : str("lyrics"),
+    reference: derived ? null : str("reference"),
+    style_strength: num("strength"), bpm: lego ? null : num("bpm"),
+    duration: derived ? null : num("duration"),
+    seed: num("seed"), fmt: $("fmt").value,
+    infer_method: str("infer"),
+    lego: lego ? current : null,
+    lego_track: lego ? $("legotrack").value : null,
+    lego_from: lego && ranged ? num("rfrom") : null,
+    lego_to: lego && ranged ? num("rto") : null,
+    repaint: repainting ? current : null,
+    repaint_from: repainting ? num("rfrom") : null,
+    repaint_to: repainting ? num("rto") : null,
+    repaint_mode: repainting ? str("rmode") : null,
+  };
+}
+
+function updateLegoInfo() {
+  const track = $("legotrack").value;
+  const info = $("legoinfo");
+  if (!track) { info.textContent = ""; info.className = "note"; return; }
+  if (!current) {
+    info.textContent = "Select a take to add to first.";
+    info.className = "note warn"; return;
+  }
+  const a = $("rfrom").value, b = $("rto").value;
+  const span = (a !== "" && b !== "") ? `from ${a}s to ${b}s` : "over the whole track";
+  info.textContent = `Adds a ${track} track to ${current}, ${span}.`
+    + " Repaint is ignored as long as an instrument is chosen.";
+  info.className = "note";
+}
+
+async function buildCmd() {
+  try {
+    const d = await api("/api/preview", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload()) });
+    $("cmd").textContent = d.command;
+  } catch (e) { $("cmd").textContent = "…"; }
+}
+
+["preset","style","lyrics","reference","strength","bpm","duration","seed","fmt","infer","rmode","rfrom","rto",
+ "legotrack"].forEach(id => $(id).addEventListener("change", buildCmd));
+$("style").addEventListener("input", updateStyleNote);
+$("grabbtn").onclick = startGrab;
+$("graburl").addEventListener("keydown", e => { if (e.key === "Enter") startGrab(); });
+
+$("legotrack").addEventListener("change", updateLegoInfo);
+
+$("preview").onclick = buildCmd;
+$("go").onclick = async () => {
+  $("go").disabled = true;
+  try {
+    const d = await api("/api/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload()) });
+    $("cmd").textContent = d.command;
+  } catch (e) { alert(e.message); }
+  refresh();
+};
+$("stop").onclick = async () => {
+  if (confirm("Stop the running generation?")) {
+    await api("/api/job/stop", { method: "POST" }); refresh();
+  }
+};
+
+function updateFmtNote() {
+  const f = $("fmt").value;
+  if (f === "mp3") {
+    $("fmtnote").innerHTML = '<span class="warn">mp3: listening only. ' +
+      'A take born lossy can never be mastered or published, and converting it ' +
+      'back to wav restores nothing.</span>';
+  } else {
+    $("fmtnote").textContent = "Lossless: ~28 MB for 145 s, against ~2.3 MB in "
+      + "mp3. That is the price of a publishable take.";
+  }
+}
+$("fmt").addEventListener("change", updateFmtNote);
+
+refresh(); buildCmd(); updateFmtNote(); updateStyleNote(); applyMode();
+setInterval(async () => {
+  try { paintJob(await api("/api/job")); } catch {}
+  try { paintMaster(await api("/api/master/state")); } catch {}
+  try { paintAlign(await api("/api/align/state")); } catch {}
+  try { paintStems(await api("/api/stems/state")); } catch {}
+  try { paintGrab(await api("/api/grab/state")); } catch {}
+}, 2000);
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

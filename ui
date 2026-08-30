@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Wrapper: launches the ACE-Step Gradio web UI (Apple Silicon / MLX backend),
+# using the settings in engine/.env. Opens on http://127.0.0.1:7860
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT/engine"
+export CHECK_UPDATE=false
+exec ./start_gradio_ui_macos.sh "$@"

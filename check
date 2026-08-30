@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Wrapper: lints (ruff), type-checks (mypy) and checks the domain layering of
+# the project's own Python.
+# engine/ is upstream ACE-Step and is excluded — see pyproject.toml.
+#
+#   ./check          checks
+#   ./check --fix    fixes what ruff knows how to fix, then checks
+set -uo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$ROOT"
+
+FIX=""
+[[ "${1:-}" == "--fix" ]] && FIX="--fix"
+
+# mypy reads the dependencies' types from engine/.venv (see pyproject.toml).
+# Without the engine installed, numpy and fastapi become Any and the check no
+# longer says much: better to flag it than to hand back a hollow green light.
+if [[ ! -x "$ROOT/engine/.venv/bin/python" ]]; then
+  echo "⚠  engine/.venv missing: mypy will see neither numpy nor fastapi." >&2
+  echo "   Install the engine first (cd engine && uv sync), see the README." >&2
+fi
+
+status=0
+
+echo "── ruff ─────────────────────────────────────────"
+uvx ruff check $FIX . || status=1
+
+echo
+echo "── mypy ─────────────────────────────────────────"
+uvx mypy || status=1
+
+# The domain stack of aimc/: neither ruff nor mypy sees it, and it breaks
+# silently — see the header of this script.
+echo
+echo "── architecture ─────────────────────────────────"
+python3 tools/check_layers.py || status=1
+
+echo
+if [[ $status -eq 0 ]]; then
+  echo "✓ all clean"
+else
+  echo "✗ problems remain"
+fi
+exit $status

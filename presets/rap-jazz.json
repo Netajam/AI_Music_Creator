@@ -1,0 +1,8 @@
+{
+  "style": "Rap français poétique, samples jazz, piano Rhodes, contrebasse souple, batterie boom-bap, flow smooth et posé, ambiance nocturne",
+  "lyrics": "../lyrics/exemple.txt",
+  "language": "fr",
+  "bpm": 92,
+  "time_signature": "4",
+  "duration": 170
+}

@@ -1,0 +1,66 @@
+{
+  "tasks": [
+    {
+      "args": [
+        "watch",
+        "."
+      ],
+      "command": "mezz",
+      "detail": "Analyse this repo and serve the browser UI",
+      "isBackground": true,
+      "label": "Mezzanine: Start web UI",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "focus": false,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": {
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^🔍 Initial analysis",
+          "endsPattern": "^👁  Watching"
+        },
+        "pattern": {
+          "file": 1,
+          "message": 1,
+          "regexp": "^\\s+⚠\\s+(.*)$"
+        }
+      },
+      "type": "shell"
+    },
+    {
+      "args": [
+        "http://localhost:3000"
+      ],
+      "command": "open",
+      "dependsOn": "Mezzanine: Start web UI",
+      "detail": "Opens http://localhost:3000, starting the engine first",
+      "label": "Mezzanine: Open web UI in browser",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "silent"
+      },
+      "problemMatcher": [],
+      "type": "shell"
+    },
+    {
+      "command": "PORT=3000; if [ -z \"$(lsof -ti tcp:$PORT -sTCP:LISTEN)\" ]; then echo \"No process is listening on port $PORT — nothing to stop.\"; else for p in $(lsof -ti tcp:$PORT -sTCP:LISTEN); do CMD=$(ps -o comm= -p $p); if [ \"$(basename \"$CMD\")\" = \"mezz\" ]; then kill $p && echo \"Stopped mezz engine on port $PORT (pid $p).\"; else echo \"Port $PORT is held by pid $p ($CMD), which is not mezz — left alone.\"; fi; done; fi",
+      "detail": "Kills the engine holding this repo's port. Closing the browser does not stop it.",
+      "label": "Mezzanine: Stop web UI",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "focus": false,
+        "panel": "shared",
+        "reveal": "always"
+      },
+      "problemMatcher": [],
+      "type": "shell"
+    }
+  ],
+  "version": "2.0.0"
+}

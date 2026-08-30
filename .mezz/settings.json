@@ -1,0 +1,8 @@
+{
+  "language": [
+    "python"
+  ],
+  "output_dir": ".mezz/data",
+  "port": 3802,
+  "debounce_ms": 300
+}

@@ -1,0 +1,9 @@
+{
+  "style": "Chanson française mélancolique, guitare acoustique et piano feutré, voix masculine grave et intime, cordes discrètes en arrière-plan, production chaleureuse et aérée",
+  "lyrics": "../lyrics/exemple.txt",
+  "language": "fr",
+  "bpm": 82,
+  "key": "D minor",
+  "time_signature": "4",
+  "duration": 180
+}

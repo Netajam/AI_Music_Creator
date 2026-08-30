@@ -1,0 +1,76 @@
+# Tooling only: this project does not install. Our own code lives in the `aimc/`
+# package, which the wrappers (`song`, `studio`, `analyse`, `master`, `grab`,
+# `blend-refs`) put on PYTHONPATH. The dependencies (numpy, fastapi, pydantic…)
+# live in engine/.venv, managed by uv on the upstream side.
+# This file configures nothing but the linter and the type checker.
+# Run both: ./check
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# engine/ is an upstream clone: its style is none of our business.
+extend-exclude = ["engine"]
+
+# A Colab notebook is not a module. A `#@param` line only becomes a form widget
+# if nothing precedes it in its cell, which puts that cell's imports after it
+# (E402), and only if the declaration is one physical line, which a long default
+# overruns (E501); and every cell has to stand up when it is the first one
+# someone runs, so it imports what it uses even where an earlier cell already
+# did (F811).
+[tool.ruff.lint.per-file-ignores]
+"colab/*.ipynb" = ["E402", "E501", "F811"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes — unused imports and variables
+    "I",        # isort — import ordering
+    "UP",       # pyupgrade — modern syntax (X | None rather than Optional[X])
+    "B",        # bugbear — classic traps (zip without strict, mutable defaults)
+    "SIM",      # simplifications
+    "C4",       # comprehensions
+    "RET",      # return consistency
+    "PTH",      # pathlib rather than os.path
+    "ARG",      # unused arguments
+    "N",        # naming conventions
+]
+ignore = [
+    # SIM300 takes FREQS (a module constant) for the "constant" side and flips
+    # `(FREQS >= lo) & (FREQS < hi)` into `(lo <= FREQS) & (hi > FREQS)`, where
+    # "FREQS between lo and hi" is no longer readable. The rule hurts this code.
+    "SIM300",
+]
+
+[tool.mypy]
+python_version = "3.11"
+# The dependencies' types come from the engine's environment, not from the
+# global pyenv: without this, numpy and fastapi would be invisible and the check
+# would no longer say anything useful.
+python_executable = "engine/.venv/bin/python"
+files = ["aimc", "tools"]
+exclude = "^engine/"
+
+# "Moderate" strictness: every function is typed, no bare dict/list, and an Any
+# return does not go unnoticed. We do not turn on full --strict:
+# disallow_any_explicit would forbid the dict[str, Any] that honestly describe
+# the JSON payloads.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_any_generics = true
+warn_return_any = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+strict_equality = true
+
+# The ACE-Step engine ships no py.typed: its modules arrive as Any, and that is
+# accepted — it is not our code.
+[[tool.mypy.overrides]]
+module = ["acestep.*"]
+ignore_missing_imports = true
+
+# torchaudio ships no py.typed either. It is only imported inside
+# `aimc/analysis/lyrics.py`, for forced alignment.
+[[tool.mypy.overrides]]
+module = ["torchaudio.*"]
+ignore_missing_imports = true

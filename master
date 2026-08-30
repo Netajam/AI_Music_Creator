@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Wrapper: prepares a track for distribution (lossless WAV/FLAC, calibrated loudness).
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec env PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" python3 -m aimc.mastering.cli "$@"

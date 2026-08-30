@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Wrapper: builds a 30 s multi-song style reference. Needs only ffmpeg + python3.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec env PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" python3 -m aimc.references.blend "$@"
