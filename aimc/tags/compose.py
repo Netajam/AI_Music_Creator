@@ -100,17 +100,27 @@ NEGATIVES = {
     "trap": "trap hi-hats, 808 slides, autotune",
 }
 
-VOICE_WORDS = re.compile(
-    r"\b(male|female|man|woman|baritone|tenor|soprano|falsetto|choir|"
-    r"instrumental|spoken|child|voix|masculine|f[ée]minine)\b", re.I)
+# Counted per preset, not per word. "voix masculine grave" is one preset asking
+# for a male voice, and counting its words instead would report it as two
+# half-facts — which is how a run of ninety hides inside a percentage.
+VOICE_KINDS: dict[str, re.Pattern[str]] = {
+    "a male voice": re.compile(
+        r"\b(male|masculine?|homme|baritone|baryton|tenor|t[ée]nor)\b", re.I),
+    "a female voice": re.compile(
+        r"\b(female|f[ée]minine?|femme|soprano|falsetto)\b", re.I),
+    "no voice": re.compile(r"\b(instrumental|no voice|sans voix)\b", re.I),
+    "spoken word": re.compile(r"\b(spoken|parl[ée]|rap(?:ped)?)\b", re.I),
+    "a choir": re.compile(r"\b(choir|chorale|ch[oœ]ur)\b", re.I),
+}
 
 
-def usage(presets: Path, limit: int = 200) -> tuple[Counter, int]:
-    """What the presets already written have been asking for, voice-wise.
+def usage(presets: Path, limit: int = 300) -> tuple[Counter, int]:
+    """How many presets here ask for each kind of voice.
 
-    Counts the voice words appearing in each preset's style, so that a run of
-    the same choice is visible while there is still time to make another one.
-    Returns the counts and how many presets were read.
+    One preset contributes at most one to each kind, which is what
+    docs/variety.md counted when it found ninety of a hundred asking for a low
+    male voice. Counting words instead splits "voix masculine" into two and
+    reports a run of ninety as a pair of forty-fives.
     """
     counts: Counter = Counter()
     seen = 0
@@ -124,7 +134,12 @@ def usage(presets: Path, limit: int = 200) -> tuple[Counter, int]:
         if not isinstance(data, dict) or "style" not in data:
             continue
         seen += 1
-        counts.update(w.lower() for w in VOICE_WORDS.findall(str(data["style"])))
+        if data.get("instrumental"):
+            counts["no voice"] += 1
+            continue
+        for kind, pattern in VOICE_KINDS.items():
+            if pattern.search(str(data.get("style", ""))):
+                counts[kind] += 1
     return counts, seen
 
 

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from aimc.tags import vocab
 from aimc.tags.compose import preset
-from aimc.tags.genres import Genre, curators, load, search
+from aimc.tags.genres import DATABASE, Genre, curators, load, search
 from aimc.workspace import PRESETS, unique_path
 
 
@@ -57,6 +57,12 @@ def _listing(genres: list[Genre]) -> int:
     for g in genres:
         table.add_row(g.name, g.bpm, f"{g.place}, {g.year}" if g.year else "",
                       ", ".join(g.aliases[:3]))
+    if not genres:
+        console.print(f"  [yellow]no genre database at {DATABASE}[/]")
+        console.print("  [dim]It is part of the workspace, not of the tool. "
+                      "Without it you can still compose a style by hand — you "
+                      "lose the tempo bands and the eras.[/]")
+        return 0
     console.print(table)
     console.print(f"  [dim]{len(genres)} genres[/]")
     return 0
@@ -88,6 +94,16 @@ def _check(style: str) -> int:
 
 
 def main() -> int:
+    try:
+        return compose()
+    except (KeyboardInterrupt, EOFError):
+        # Ctrl-C and Ctrl-D are how you leave a prompt loop. Nothing has been
+        # written by then — the preset is written last, and only on confirming.
+        print("\n  nothing written.")
+        return 130
+
+
+def compose() -> int:
     args = build_parser().parse_args()
     genres = load()
 

@@ -141,12 +141,16 @@ def warn_repetition(presets: Path) -> None:
     top, n = counts.most_common(1)[0]
     if n / seen < 0.6:
         return
+    others = ", ".join(f"{kind} {c}" for kind, c in counts.most_common()[1:4])
     console.print(Panel(
-        f"[yellow]{n} of the last {seen} presets here say “{top}”.[/]\n"
+        f"[yellow]{n} of the {seen} presets in this workspace ask for "
+        f"{top}[/] — {n / seen:.0%}.\n"
+        f"[dim]The rest: {others or 'nothing else'}.[/]\n\n"
         f"That is the shape docs/variety.md records: a wide tempo range, "
-        f"genuinely different genres, and one songwriter underneath them all. "
-        f"Worth picking something else this time.",
-        border_style="yellow"))
+        f"genuinely different genres, and one songwriter underneath all of "
+        f"them. Worth choosing otherwise this time.",
+        border_style="yellow", title="what this workspace keeps asking for",
+        title_align="left"))
 
 
 def choose_negative() -> str:
