@@ -245,6 +245,49 @@ Three traps, because the model ignores them **silently**:
 
 ---
 
+## Writing a style with the facts to hand
+
+`--style` is the strongest lever here and the easiest to get wrong. `./tags` is
+a writing desk for it: it puts the two things that can settle an argument in
+front of you while you type, and loads no model at all.
+
+```bash
+./tags                    # browse, compose, write a preset
+./tags dub-techno         # start on a genre
+./tags --list             # the genres and their real tempo bands
+./tags --curators         # who curated what
+./tags --check "deep techno, in the style of blondish, hypnotic"
+```
+
+The first is the **genre database** in `refs/waxonia/` — ninety-one genres that
+know what tempo they actually sit at, what year and city they came from, and
+what they descend from. A tempo offered from there is a fact rather than a
+guess; dub techno is 120–130, so `./tags` proposes 125.
+
+The second is the **model's own vocabulary**, `engine/acestep/genres_vocab.txt`,
+178,571 terms and not one artist name. Each fragment you write is marked against
+it:
+
+```
+✓ deep techno
+· in the style of blondish
+· hypnotic
+```
+
+A `✓` is a term the model has certainly seen. Unmarked is *not* wrong — a style
+is prose and most of it is unmarked — it simply has no evidence behind it. But
+it does answer the question the README's "describe the style, not the artist"
+rule only asserts: `blondish` is not in there, and `deep techno` is.
+
+It also counts what the presets already in the workspace have been asking for,
+and says so when six in ten of them want the same voice — the mechanism
+[`docs/variety.md`](docs/variety.md) records, caught before the take rather than
+after ninety of them.
+
+It writes a preset and stops. Rendering it is `./song --preset …`.
+
+---
+
 ## Style references: grabbing and blending tracks
 
 ### Download a track
@@ -628,6 +671,7 @@ analyse              analyses a track            -> aimc.analysis.cli
 master               prepares a master           -> aimc.mastering.cli
 grab                 downloads a track           -> aimc.references.grab
 blend-refs           builds a reference          -> aimc.references.blend
+tags                 composes a style            -> aimc.tags.cli
 ui                   wrapper for the upstream Gradio interface
 check                linter + type checking (ruff, mypy)
 
@@ -639,6 +683,8 @@ aimc/
 │                   plus two model passes: lyric alignment and stem separation
 ├── mastering/       distribution targets, EBU R128 measurement, normalisation
 ├── references/      grab + blend + picks: building a style reference
+├── tags/            the genre database and the model's vocabulary, for writing
+│                   a style — reads both, loads no model
 ├── generation/      command/ (the command line) then render/ (the engine)
 └── studio/          library/ (what we know about takes) then the routes
 

@@ -33,7 +33,7 @@ PACKAGE = Path(__file__).resolve().parent.parent / "aimc"
 LAYERS: dict[str, int] = {
     "workspace": 0,
     "audio": 1,
-    "provenance": 2, "analysis": 2, "mastering": 2, "references": 2,
+    "provenance": 2, "analysis": 2, "mastering": 2, "references": 2, "tags": 2,
     "generation": 3,
     "studio": 4,
 }
@@ -94,8 +94,18 @@ def check(path: Path, tree: ast.Module) -> list[str]:
     rank = LAYERS.get(domain)
     problems = []
 
+    # `aimc/__init__.py` is the package's own docstring, not a domain.
+    if domain == "__init__":
+        return problems
+
+    if rank is None:
+        problems.append(
+            f"{rel}: {domain}/ is not in LAYERS, so nothing about its imports "
+            f"is checked — give it a rank")
+        return problems
+
     for other in sorted(imported_domains(tree)):
-        if other == domain or other not in LAYERS or rank is None:
+        if other == domain or other not in LAYERS:
             continue
         if LAYERS[other] >= rank:
             problems.append(

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Wrapper: the style composer, in the engine's environment.
+# It needs `rich` (which lives there) and the model's vocabulary file, and it
+# loads neither torch nor a checkpoint — it is a writing desk, not a renderer.
+# VIRTUAL_ENV is cleared so an activated env cannot shadow engine/.venv;
+# MPLBACKEND for the reason given in ./song.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+unset VIRTUAL_ENV
+export MPLBACKEND=Agg
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+exec uv run --project "$ROOT/engine" --no-sync python -m aimc.tags.cli "$@"
